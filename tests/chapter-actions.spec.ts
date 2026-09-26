@@ -1,0 +1,114 @@
+import { test, expect } from './seed';
+
+test('dragging a scrolled chapter list retains viewport and persists order', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '书架菜单', exact: true }).click();
+  await page.locator('[data-action="import"]').click();
+  const text = Array.from({ length: 35 }, (_, i) => `第${i + 1}章\n正文。\n`).join('');
+  await page.locator('#txt-file').setInputFiles({ name: '拖动测试.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await expect(page.locator('#txt-confirm')).toBeEnabled();
+  await page.locator('#txt-confirm').click();
+  await page.locator('[data-action="manage-chapters"]').click();
+  const list = page.locator('.chapter-list');
+  await list.evaluate(el => { el.scrollTop = 740; });
+  const scroll = await list.evaluate(el => el.scrollTop);
+  const from = page.locator('[data-chapter-index="12"]');
+  const box = (await from.boundingBox())!;
+  const oldTitle = await from.locator('strong').innerText();
+  const listNode = await list.elementHandle();
+  await page.mouse.move(box.x + 140, box.y + 25);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 140, box.y + 120, { steps: 15 });
+  await page.mouse.up();
+  await expect(page.locator('[data-chapter-index="13"] strong')).toHaveText(oldTitle);
+  expect(await listNode!.evaluate(el => el === document.querySelector('.chapter-list'))).toBe(true);
+  expect(await list.evaluate(el => el.scrollTop)).toBe(scroll);
+  await page.getByRole('button', { name: '完成', exact: true }).click();
+  await expect(page.locator('.save-status')).toHaveText('已保存');
+  await page.reload();
+  await page.locator('.book').filter({ hasText: '拖动测试' }).click();
+  await expect(page.locator('[data-action="chapter:13"] strong')).toHaveText(oldTitle);
+});
+
+test('chapter swipe reveals deletion, cancel preserves and confirm deletes', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  const row = page.locator('[data-action="chapter:0"]');
+  const bounds = (await row.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width - 30, bounds.y + 25);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width - 140, bounds.y + 25, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('.chapter-swipe.swiped')).toHaveCount(1);
+  await page.locator('[data-action="delete-chapter:0"]').click();
+  await expect(page.locator('.chapter-swipe.swiped')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.chapter-swipe')).toHaveCount(3);
+  await expect(page.locator('.chapter-swipe.swiped')).toHaveCount(0);
+  await page.mouse.move(bounds.x + bounds.width - 30, bounds.y + 25);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width - 140, bounds.y + 25, { steps: 8 });
+  await page.mouse.up();
+  await page.locator('[data-action="delete-chapter:0"]').click();
+  await page.locator('[data-action^="confirm-single-chapter:"]').click();
+  await expect(page.locator('.chapter-swipe')).toHaveCount(2);
+  await page.reload();
+  await page.locator('[data-action="book:1"]').click();
+  await expect(page.locator('.chapter-swipe')).toHaveCount(2);
+});
+
+test('management selects entire rows without replacing footer and leaves last chapter visible', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="manage-chapters"]').click();
+  await expect(page.locator('.chapter-managing .drag-handle')).toHaveCount(0);
+  const footer = await page.locator('.chapter-batch-footer').elementHandle();
+  const row = page.locator('[data-action="select-chapter:0"]');
+  const box = (await row.boundingBox())!;
+  await row.click({ position: { x: box.width - 12, y: 25 } });
+  await expect(row).toHaveAttribute('aria-pressed', 'true');
+  await row.click();
+  await expect(row).toHaveAttribute('aria-pressed', 'false');
+  expect(await row.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+  expect(await footer!.evaluate(el => el === document.querySelector('.chapter-batch-footer'))).toBe(true);
+  await page.locator('[data-action="select-all-chapters"]').click();
+  await expect(page.locator('[aria-pressed="true"][data-chapter-index]')).toHaveCount(3);
+  const list = await page.locator('.chapter-list').boundingBox();
+  const bottom = await page.locator('.chapter-batch-footer').boundingBox();
+  expect(list!.y + list!.height).toBeLessThanOrEqual(bottom!.y + 1);
+  await page.screenshot({ path: 'test-results/chapter-management.png', animations: 'disabled' });
+});
+
+test('undo redo availability follows edits, undo, redo and new input', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  const undo = page.locator('[data-action="tool:undo"]'), redo = page.locator('[data-action="tool:redo"]');
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  await page.getByRole('textbox', { name: '章节正文', exact: true }).fill('改动');
+  await expect(undo).toBeEnabled();
+  await page.getByRole('button', { name: '收起键盘', exact: true }).click();
+  await undo.click();
+  expect(await page.evaluate(() => document.activeElement?.hasAttribute('contenteditable'))).toBe(false);
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect(redo).toBeDisabled();
+  await undo.click();
+  await page.getByRole('textbox', { name: '章节正文', exact: true }).fill('新的改动');
+  await expect(redo).toBeDisabled();
+});
+
+test('whole book formatting applies immediately without a batch undo entry', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await page.locator('[data-action="format-book"]').click();
+  await expect(page.locator('#sheet')).not.toBeVisible();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await expect(page.locator('[data-action="undo-book-format"]')).toHaveCount(0);
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.locator('.chapter-page')).toBeVisible();
+});
