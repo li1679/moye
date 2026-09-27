@@ -1768,6 +1768,8 @@ input[type="range"]::-moz-range-thumb {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+#notice.with-action { pointer-events: auto; display: flex; align-items: center; gap: 12px; }
+.notice-action { color: inherit; font: inherit; font-weight: 700; text-decoration: underline; min-height: 44px; padding: 0 8px; }
 
 /* 页面切换：新页面内容滑入，旧页面在上层淡出 */
 .page-forward > :not(.bottom-nav):not(.batch-footer):not(.reader-top):not(.reader-progress):not(.reader-bottom) {

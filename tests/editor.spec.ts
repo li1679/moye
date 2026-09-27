@@ -71,7 +71,7 @@ test('format applies immediately as one undo operation and is idempotent', async
   await expect(page.locator('#sheet')).not.toBeVisible();
 });
 
-test('undo survives chapter switching and new input invalidates redo', async ({ page }) => {
+test('undo history is cleared after leaving the chapter', async ({ page }) => {
   await open(page);
   await editor(page).fill('第一次修改');
   await editor(page).fill('第二次修改');
@@ -80,16 +80,14 @@ test('undo survives chapter switching and new input invalidates redo', async ({ 
   await editor(page).fill('另一章修改');
   await page.getByRole('button', { name: '返回目录', exact: true }).click();
   await page.locator('[data-action="chapter:0"]').click();
-  await page.locator('[data-action="tool:undo"]').click();
-  await expect(editor(page)).toHaveText('第一次修改');
+  await expect(page.locator('[data-action="tool:undo"]')).toBeDisabled();
   await editor(page).fill('第三次修改');
+  await expect(page.locator('[data-action="tool:undo"]')).toBeEnabled();
   await expect(page.locator('[data-action="tool:redo"]')).toBeDisabled();
   await expect(editor(page)).toHaveText('第三次修改');
   await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
-  await toShelf(page);
-  await page.locator('[data-action="book:1"]').click();
-  await page.locator('[data-action="chapter:0"]').click();
+  await expect(page.locator('.editor')).toBeVisible();
   await expect(editor(page)).toHaveText('第三次修改');
 });
 
@@ -143,12 +141,13 @@ test('whole-book replacement previews and per-chapter undo restores text', async
   await expect(page.locator('.sheet-content')).toContainText('2 章、2 处匹配');
   await page.locator('[data-action="confirm-book-replace"]').click();
   await expect(editor(page)).toHaveText('新词 第二章');
+  await page.locator('[data-action="tool:undo"]').click();
+  await expect(editor(page)).toHaveText('共同词 第二章');
   await page.getByRole('button', { name: '返回目录', exact: true }).click();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
-  await expect(page.locator('[data-action="undo-book-format"]')).toHaveCount(0);
-  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.locator('[data-action="undo-book-change"]')).toHaveText('撤销全书替换');
+  await page.locator('[data-action="undo-book-change"]').click();
   await page.locator('[data-action="chapter:0"]').click();
-  await page.locator('[data-action="tool:undo"]').click();
   await expect(editor(page)).toHaveText('共同词 第一章');
 });
 

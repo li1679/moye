@@ -19,6 +19,13 @@ export class ChapterHistory {
     return !!(chapter.id && this.histories.get(chapter.id)?.[direction].length);
   }
 
+  /** 离开当前章时清空全部撤销记录（D-02）。 */
+  clear() {
+    this.histories.clear();
+    this.active.clear();
+    this.bytes = 0;
+  }
+
   private get(chapter: EditableChapter) {
     chapter.id ??= crypto.randomUUID();
     let history = this.histories.get(chapter.id);

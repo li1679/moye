@@ -104,14 +104,28 @@ test('undo redo availability follows edits, undo, redo and new input', async ({ 
   await expect(redo).toBeDisabled();
 });
 
-test('whole book formatting applies immediately without a batch undo entry', async ({ page }) => {
+test('whole book formatting applies immediately and can be undone from the book menu', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  const body = page.getByRole('textbox', { name: '章节正文', exact: true });
+  const original = await body.innerText();
+  await page.getByRole('button', { name: '返回目录', exact: true }).click();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
   await page.locator('[data-action="format-book"]').click();
   await expect(page.locator('#sheet')).not.toBeVisible();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
-  await expect(page.locator('[data-action="undo-book-format"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="undo-book-change"]')).toHaveText('撤销全书排版');
+  await page.locator('[data-action="undo-book-change"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  await expect(body).toHaveText(original);
+  await page.getByRole('button', { name: '返回目录', exact: true }).click();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await page.locator('[data-action="format-book"]').click();
+  await page.getByRole('button', { name: '返回书架', exact: true }).click();
+  await page.locator('[data-action="book:1"]').click();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await expect(page.locator('[data-action="undo-book-change"]')).toHaveCount(0);
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await expect(page.locator('.chapter-page')).toBeVisible();
 });

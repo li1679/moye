@@ -18,6 +18,7 @@ import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 import { createBackupFlows } from './features/backup/flows';
 import { SearchClient } from './features/editor/search-client';
+import { rememberBookChange, currentBookUndo, pendingBookUndo, takeBookUndo, clearBookUndo } from './features/editor/book-undo';
 import { createSettings } from './ui/settings';
 
 /* UI state hydrated from the platform's local database before first render. */
@@ -69,6 +70,12 @@ const txtFlows = createTxtFlows({ state, openSheet, closeSheet, render: () => re
 const backupFlows = createBackupFlows({ state, openSheet, prepare: () => disposeReadingEditing() });
 const chapter = () => book()?.chapters[state.chapter];
 const history = new ChapterHistory();
+let historyChapterId = null;
+function resetHistory(id = null) {
+  if (historyChapterId === id) return;
+  history.clear();
+  historyChapterId = id;
+}
 let composition = null;
 let readerSession = null, disposeEditor = null;
 let pendingInput = null;
@@ -100,11 +107,24 @@ function disposeReadingEditing() {
 }
 const total = (b) => b.chapters.reduce((n, c) => n + count(c.body), 0);
 let toastTimer, returnFocus;
-function toast(message) {
+let toastAction = null;
+function toast(message, action) {
   clearTimeout(toastTimer);
-  $("#notice").textContent = message;
-  $("#notice").classList.add("visible");
-  toastTimer = setTimeout(() => $("#notice").classList.remove("visible"), 2600);
+  const notice = $("#notice");
+  toastAction = action?.run ?? null;
+  notice.replaceChildren(document.createTextNode(message));
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'notice-action';
+    button.dataset.action = 'notice-action';
+    button.textContent = action.label;
+    notice.append(button);
+  }
+  notice.classList.toggle('with-action', !!action);
+  notice.classList.add('visible');
+  const duration = action ? 5000 : Math.min(8000, Math.max(2600, message.length * 120));
+  toastTimer = setTimeout(() => { notice.classList.remove('visible', 'with-action'); toastAction = null; }, duration);
 }
 const panels = createSheets(sheet, { escape: esc, button: ib, icons, restored() {
   const gridStatus = $('[data-action="grid"] .row-value', sheet);
@@ -178,7 +198,10 @@ function enableLibrarySort() {
   });
 }
 function render() {
+  const pending = currentBookUndo();
+  if (pending && (state.page === 'home' || pending.bookId !== state.book)) clearBookUndo();
   disposeReadingEditing();
+  if (state.page !== 'editor') resetHistory();
   chapterSort?.destroy();
   chapterSort = null;
   librarySort?.destroy();
@@ -236,8 +259,7 @@ function reindexChapterRows() {
   });
   updateChapterSelection();
 }
-function updateChapters(next) {
-  const b = book();
+function updateChapters(next, b = book()) {
   const current = b.chapters[state.chapter];
   const progress = state.reading[b.id];
   const readingChapter = progress ? b.chapters[progress.chapter] : null;
@@ -340,6 +362,7 @@ function renderEditor() {
     render();
     return;
   }
+  if (!reader) resetHistory(c.id ??= crypto.randomUUID());
   app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "全文搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + count(c.body) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
   icons();
   applyAppearance();
@@ -436,7 +459,7 @@ function inputForm(title, label, action, value = "") {
 function confirmSheet(title, message, action) {
   openSheet(
     title,
-    `<p class="hint">${esc(message)}</p><button class="primary" data-action="${action}">确认删除</button>`,
+    `<p class="hint">${esc(message)}</p><div class="sheet-actions"><button class="text-action" data-action="sheet-back">取消</button><button class="primary danger" data-action="${action}">确认删除</button></div>`,
   );
 }
 function search(scope = "book", replace = false) {
@@ -565,7 +588,7 @@ function manageChapters() {
   render();
 }
 function commitBody(value, target = chapter()) {
-  history.record(target, 'body', target.body, value);
+  if (state.page === 'editor' && target === chapter()) history.record(target, 'body', target.body, value);
   target.body = value;
   updateHistoryTools();
   if (target !== chapter()) return;
@@ -608,6 +631,15 @@ async function action(a) {
   }
   if (kind === "close") {
     closeSheet();
+    return;
+  }
+  if (kind === 'notice-action') {
+    const run = toastAction;
+    clearTimeout(toastTimer);
+    const notice = $('#notice');
+    notice.classList.remove('visible', 'with-action');
+    toastAction = null;
+    run?.();
     return;
   }
   if (kind === 'sheet-back') {
@@ -809,23 +841,42 @@ async function action(a) {
     }
     confirmSheet(
       "删除书籍",
-      `删除选中的 ${state.selected.size} 本书？`,
+      `删除选中的 ${state.selected.size} 本书？删除后 5 秒内可以撤销。`,
       "confirm-books",
     );
     return;
   }
   if (kind === "confirm-books") {
+    const removed = state.books.map((b, index) => ({ b, index })).filter(({ b }) => state.selected.has(b.id));
+    const positions = removed.map(({ b }) => ({ id: b.id, reading: state.reading[b.id], editing: Object.fromEntries(b.chapters.filter(c => state.editing[c.id]).map(c => [c.id, state.editing[c.id]])) }));
     state.books = state.books.filter((b) => !state.selected.has(b.id));
+    for (const { b } of removed) {
+      delete state.reading[b.id];
+      for (const c of b.chapters) delete state.editing[c.id];
+    }
     state.selected.clear();
     state.batch = false;
     closeSheet();
     render();
+    const n = removed.length;
+    toast(n === 1 ? `已删除《${removed[0].b.name}》` : `已删除 ${n} 本书`, { label: '撤销', run: () => {
+      if (removed.every(({ b }) => state.books.includes(b))) return;
+      for (const { b, index } of removed) {
+        state.books.splice(Math.min(index, state.books.length), 0, b);
+        const saved = positions.find(item => item.id === b.id);
+        if (saved?.reading) state.reading[b.id] = saved.reading;
+        for (const [id, position] of Object.entries(saved?.editing ?? {})) state.editing[id] = position;
+      }
+      render();
+    } });
     return;
   }
   if (kind === "book-menu") {
+    const pending = pendingBookUndo(state.book);
     openSheet(
       "书籍操作",
       toolMenu([
+        ...(pending ? [["undo-2", "撤销" + pending.label, "undo-book-change"]] : []),
         ["book-open-text", "书籍详情", "details"],
         ["pencil-line", "修改信息", "edit-book"],
         ["square-check-big", "管理章节", "manage-chapters"],
@@ -849,16 +900,29 @@ async function action(a) {
   if (kind === "delete-book") {
     confirmSheet(
       "删除书籍",
-      `删除《${book().name}》及其章节？`,
+      `删除《${book().name}》及其章节？删除后 5 秒内可以撤销。`,
       "confirm-book",
     );
     return;
   }
   if (kind === "confirm-book") {
-    state.books = state.books.filter((b) => b.id !== state.book);
+    const b = book();
+    const index = state.books.indexOf(b);
+    const reading = state.reading[b.id];
+    const editing = Object.fromEntries(b.chapters.filter(c => state.editing[c.id]).map(c => [c.id, state.editing[c.id]]));
+    state.books = state.books.filter((item) => item !== b);
+    delete state.reading[b.id];
+    for (const c of b.chapters) delete state.editing[c.id];
     state.page = "home";
     closeSheet();
     render();
+    toast(`已删除《${b.name}》`, { label: '撤销', run: () => {
+      if (state.books.includes(b)) return;
+      state.books.splice(Math.min(index, state.books.length), 0, b);
+      if (reading) state.reading[b.id] = reading;
+      for (const [id, position] of Object.entries(editing)) state.editing[id] = position;
+      render();
+    } });
     return;
   }
   if (kind === "manage-chapters") {
@@ -890,32 +954,53 @@ async function action(a) {
   }
   if (kind === 'delete-chapter') {
     const c = book().chapters[Number(arg)];
-    confirmSheet('删除章节', '确定删除《' + c.name + '》？', 'confirm-single-chapter:' + c.id);
+    confirmSheet('删除章节', '确定删除《' + c.name + '》？删除后 5 秒内可以撤销。', 'confirm-single-chapter:' + c.id);
     returnFocus = $('[data-action="chapter:' + arg + '"]');
     const swiped = returnFocus?.closest('.chapter-swipe');
     sheet.addEventListener('close', () => swiped?.classList.remove('swiped'), { once: true });
     return;
   }
   if (kind === 'confirm-single-chapter') {
-    const c = book().chapters.find(c => c.id === arg);
+    const b = book();
+    const c = b.chapters.find(item => item.id === arg);
     if (!c) throw new Error('章节已不存在');
-    const next = book().chapters.filter(item => item !== c);
-    updateChapters(next);
+    const index = b.chapters.indexOf(c);
+    const position = state.editing[c.id];
+    updateChapters(b.chapters.filter(item => item !== c), b);
+    delete state.editing[c.id];
     closeSheet();
     render();
     await saveNow(state);
+    toast('已删除 1 章', { label: '撤销', run: () => {
+      if (b.chapters.includes(c) || !state.books.includes(b)) return;
+      b.chapters.splice(Math.min(index, b.chapters.length), 0, c);
+      if (position) state.editing[c.id] = position;
+      render();
+    } });
     return;
   }
   if (kind === "delete-chapters") {
     if (!state.selectedChapters.size) return;
-    confirmSheet("删除章节", "删除选中的 " + state.selectedChapters.size + " 个章节？", "confirm-chapters");
+    confirmSheet("删除章节", "删除选中的 " + state.selectedChapters.size + " 个章节？删除后 5 秒内可以撤销。", "confirm-chapters");
     return;
   }
   if (kind === "confirm-chapters") {
-    updateChapters(book().chapters.filter(c => !state.selectedChapters.has(c)));
+    const b = book();
+    const removed = b.chapters.map((c, index) => ({ c, index, position: state.editing[c.id] })).filter(({ c }) => state.selectedChapters.has(c)).sort((x, y) => x.index - y.index);
+    updateChapters(b.chapters.filter(c => !state.selectedChapters.has(c)), b);
+    for (const { c } of removed) delete state.editing[c.id];
     state.selectedChapters.clear();
     closeSheet();
     render();
+    toast(`已删除 ${removed.length} 章`, { label: '撤销', run: () => {
+      if (!state.books.includes(b)) return;
+      for (const { c, index, position } of removed) {
+        if (b.chapters.includes(c)) continue;
+        b.chapters.splice(Math.min(index, b.chapters.length), 0, c);
+        if (position) state.editing[c.id] = position;
+      }
+      render();
+    } });
     return;
   }
   if (
@@ -1164,7 +1249,7 @@ async function action(a) {
       pendingReplace = targets.filter(c => c.body.includes(q)).map(c => ({ chapter: c, before: c.body, after: replaceText(c.body, q, replacement) })).filter(change => change.before !== change.after);
       if (!pendingReplace.length) { toast('没有需要替换的内容'); return; }
       const total = pendingReplace.reduce((sum, change) => sum + change.before.split(q).length - 1, 0);
-      openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
+      openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。离开这本书之前，可以在书籍菜单里撤销。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
       return;
     }
     if (!target?.body.includes(q)) {
@@ -1186,6 +1271,7 @@ async function action(a) {
     if (!changes?.length) return;
     if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览替换');
     for (const change of changes) commitBody(change.after, change.chapter);
+    rememberBookChange({ bookId: state.book, label: '全书替换', changes: changes.map(({ chapter, before, after }) => ({ chapterId: chapter.id, before, after })) });
     pendingReplace = null;
     closeSheet();
     await saveNow(state);
@@ -1209,10 +1295,27 @@ async function action(a) {
     if (!changes?.length) return;
     if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览排版');
     for (const change of changes) commitBody(change.after, change.chapter);
+    if (arg === 'book') rememberBookChange({ bookId: state.book, label: '全书排版', changes: changes.map(({ chapter, before, after }) => ({ chapterId: chapter.id, before, after })) });
     pendingFormat = null;
     closeSheet();
     render();
     await saveNow(state);
+    return;
+  }
+  if (kind === 'undo-book-change') {
+    const entry = takeBookUndo(state.book);
+    if (!entry) return;
+    const b = book();
+    let skipped = 0;
+    for (const change of entry.changes) {
+      const c = b.chapters.find(item => item.id === change.chapterId);
+      if (c && c.body === change.after) c.body = change.before;
+      else skipped++;
+    }
+    closeSheet();
+    render();
+    await saveNow(state);
+    toast(skipped ? `已撤销${entry.label}，${skipped} 章之后改过，没有撤销` : `已撤销${entry.label}`);
     return;
   }
   if (kind === "reader-settings") {
