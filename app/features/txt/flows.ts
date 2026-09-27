@@ -1,10 +1,11 @@
 import { saveNow } from '../../data/autosave';
+import { nextLibraryOrder } from '../../data/schema';
 import { saveTextFile } from './files';
 import { exportText, txtFilename, type ParsedText, type ChapterText } from './text';
 
-type Book = { id: number; name: string; author: string; chapters: ChapterText[]; sourceHash?: string; group: number | null; tone: string };
+type Book = { id: number; name: string; author: string; chapters: ChapterText[]; sourceHash?: string; group: number | null; libraryOrder?: number };
 type Context = {
-  state: { books: Book[]; book: number; chapter: number; page: string; tab: string; folder: number | null; readerControls: boolean };
+  state: { books: Book[]; groups: { id: number; name: string; libraryOrder?: number }[]; book: number; chapter: number; page: string; tab: string; folder: number | null; readerControls: boolean };
   openSheet: (title: string, body: string) => void;
   closeSheet: () => void;
   render: () => void;
@@ -120,7 +121,8 @@ export function createTxtFlows(context: Context) {
       let id = Date.now();
       while (state.books.some(book => book.id === id)) id++;
       const imported: Book = {
-        id, name, author: find<HTMLInputElement>('#txt-author').value.trim(), group: null, tone: '',
+        id, name, author: find<HTMLInputElement>('#txt-author').value.trim(), group: null,
+        libraryOrder: nextLibraryOrder(context.state, null),
         chapters: parsed.chapters, sourceHash: parsed.hash,
       };
       state.books.push(imported);

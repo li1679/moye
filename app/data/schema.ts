@@ -203,7 +203,7 @@ export function assignLibraryOrder(books: Book[], groups: Group[]) {
   fillOrder([...groups, ...books.filter(book => book.group === null)]);
   for (const group of groups) fillOrder(books.filter(book => book.group === group.id));
 }
-export function nextLibraryOrder(library: Pick<Library, 'books' | 'groups'>, group: number | null): number {
+export function nextLibraryOrder(library: { books: { group: number | null; libraryOrder?: number }[]; groups: { libraryOrder?: number }[] }, group: number | null): number {
   const items: Ordered[] = [...(group === null ? library.groups : []), ...library.books.filter(book => book.group === group)];
   return Math.max(-1, ...items.map(item => item.libraryOrder ?? -1)) + 1;
 }

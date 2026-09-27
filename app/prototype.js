@@ -4,7 +4,7 @@ import { renderIcons as icons } from './ui/icons';
 import { createSheets } from './ui/sheets';
 import Sortable from "sortablejs";
 import { persistState, saveNow } from './data/autosave';
-import { emptyLibrary, DEFAULT_SESSION } from './data/schema';
+import { emptyLibrary, DEFAULT_SESSION, nextLibraryOrder } from './data/schema';
 import { createTxtFlows } from './features/txt/flows';
 import { ChapterHistory } from './features/editor/history';
 import { formatText, replaceText, wordsOf, bookWords } from './features/editor/text-tools';
@@ -174,9 +174,7 @@ function libraryItems() {
     ...(state.folder === null ? state.groups.map(item => ({key:'folder:'+item.id,item,folder:true})) : []),
     ...state.books.filter(b=>b.group===state.folder).map(item=>({key:'book:'+item.id,item,folder:false})),
   ];
-  let next = Math.max(-1,...items.map(({item})=>item.libraryOrder ?? -1))+1;
-  for(const {item} of items) if(item.libraryOrder === undefined) item.libraryOrder = next++;
-  return items.sort((a,b)=>a.item.libraryOrder-b.item.libraryOrder);
+  return items.sort((a,b)=>(a.item.libraryOrder ?? Infinity)-(b.item.libraryOrder ?? Infinity));
 }
 let librarySort, chapterSort;
 function enableLibrarySort() {
@@ -823,9 +821,12 @@ async function action(a) {
     return;
   }
   if (kind === "move-to") {
+    const target = arg === "root" ? null : Number(arg);
     state.books.forEach((b) => {
-      if (state.selected.has(b.id))
-        b.group = arg === "root" ? null : Number(arg);
+      if (state.selected.has(b.id)) {
+        b.group = target;
+        b.libraryOrder = nextLibraryOrder(state, target);
+      }
     });
     state.batch = false;
     state.selected.clear();
@@ -1530,8 +1531,8 @@ document.addEventListener("submit", (e) => {
         ...values,
         id: Date.now(),
         group: state.folder,
+        libraryOrder: nextLibraryOrder(state, state.folder),
         chapters: [],
-        tone: "",
       });
     closeSheet();
     render();
@@ -1540,7 +1541,7 @@ document.addEventListener("submit", (e) => {
     const value = $("#simple-value").value.trim();
     if (!value) return;
     const kind = f.dataset.kind;
-    if (kind === "group") state.groups.push({ id: Date.now(), name: value });
+    if (kind === "group") state.groups.push({ id: Date.now(), name: value, libraryOrder: nextLibraryOrder(state, null) });
     if (kind === "rename-group")
       state.groups.find((g) => g.id === state.activeGroup).name = value;
     closeSheet();
