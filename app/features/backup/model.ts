@@ -1,93 +1,17 @@
 import { persistentFields } from '../../data/autosave';
 export type Chapter = { id: string; name: string; body: string; [key: string]: any };
 export type Book = { id: number; name: string; author: string; group: number | null; chapters: Chapter[]; [key: string]: any };
-export type Entry = { id: string; label: string; date: string; before: Book[]; after: Book[]; reading: Record<string, any>; editing: Record<string, any>; group?: { id: number; name: string } };
-export type Library = { books: Book[]; groups: { id: number; name: string }[]; recovery: Entry[]; [key: string]: any };
+export type Library = { books: Book[]; groups: { id: number; name: string }[]; [key: string]: any };
 // Copy JSON data without materializing another full-book JSON string.
 export function clone<T>(value: T): T {
   if (value === null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(item => item === undefined ? null : clone(item)) as T;
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).map(([key, item]) => [key, clone(item)])) as T;
 }
-// Recovery entries are immutable snapshots; only the containing array is replaced.
-const entrySizes = new WeakMap<object, number>();
-export type RecoveryCapacity = { count: number; bytes: number; limitCount: number; limitBytes: number };
-export function recoveryCapacity(entries: Entry[]): RecoveryCapacity {
-  let bytes = 4 + Math.max(0, entries.length - 1) * 2;
-  for (const entry of entries) {
-    let size = entrySizes.get(entry);
-    if (size === undefined) { size = JSON.stringify(entry).length * 2; entrySizes.set(entry, size); }
-    bytes += size;
-  }
-  return { count: entries.length, bytes, limitCount: 50, limitBytes: 64 * 1024 * 1024 };
-}
-export function recoveryCapacityLabel(entries: Entry[]): string {
-  const capacity = recoveryCapacity(entries);
-  return `${capacity.count}/${capacity.limitCount} 条，约 ${(capacity.bytes / 1024 / 1024).toFixed(2)}/${capacity.limitBytes / 1024 / 1024}MiB（剩余约 ${Math.max(0, (capacity.limitBytes - capacity.bytes) / 1024 / 1024).toFixed(2)}MiB）`;
-}
-function sameValue(left: any, right: any): boolean {
-  if (left === right) return true;
-  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
-  if (Array.isArray(left) !== Array.isArray(right)) return false;
-  const keys = Object.keys(left);
-  return keys.length === Object.keys(right).length && keys.every(key => Object.hasOwn(right, key) && sameValue(left[key], right[key]));
-}
 export function librarySnapshot(state: Library): Library {
   const result: Record<string, any> = {};
-  for (const key of persistentFields) result[key] = clone(state[key] ?? (key === 'recovery' ? [] : key === 'restorePoint' ? null : {}));
+  for (const key of persistentFields) result[key] = clone(state[key] ?? (key === 'restorePoint' ? null : {}));
   return result as Library;
-}
-export function checkpoint(state: Library, label: string, before: Book[], after: Book[], group?: { id: number; name: string }) {
-  if (!before.length && !group) return;
-  if ((state.recovery?.length || 0) >= 50) throw new Error('恢复记录已达到 50 条上限，请先备份并清理旧记录；本次操作未执行。');
-  const entry: Entry = {
-    id: crypto.randomUUID(), label, date: new Date().toISOString(), before: clone(before), after: clone(after),
-    reading: {}, editing: {},
-  };
-  if (group) entry.group = clone(group);
-  for (const book of before) {
-    if (state.reading[book.id]) entry.reading[book.id] = clone(state.reading[book.id]);
-    for (const chapter of book.chapters) if (state.editing[chapter.id]) entry.editing[chapter.id] = clone(state.editing[chapter.id]);
-  }
-  const entries = [...(state.recovery || []), entry];
-  // Never silently evict a deleted work to make room.
-  const capacity = recoveryCapacity(entries);
-  if (capacity.count > capacity.limitCount || capacity.bytes > capacity.limitBytes) {
-    throw new Error('恢复记录已达到 50 条或 64MiB 上限。请先完整备份，并在恢复记录中清理旧记录；本次操作未执行。');
-  }
-  state.recovery = entries;
-}
-export function canRestore(state: Library, entry: Entry) {
-  if (entry.group && state.groups.some(group => group.id === entry.group!.id)) return false;
-  return entry.before.every(previous => {
-    const current = state.books.find(book => book.id === previous.id);
-    const after = entry.after.find(book => book.id === previous.id);
-    return after ? sameValue(current, after) : !current;
-  });
-}
-export function restoreEntry(state: Library, entry: Entry, asCopy: boolean) {
-  if (!asCopy && !canRestore(state, entry)) throw new Error('这本书在操作后已有修改，请恢复为副本，避免覆盖现有内容。');
-  const result = librarySnapshot(state);
-  if (entry.group && !asCopy) result.groups.push(clone(entry.group));
-  const validGroups = new Set(result.groups.map(group => group.id));
-  let nextId = Math.max(Date.now(), ...result.books.map(book => book.id + 1));
-  for (const original of entry.before) {
-    const restored = clone(original);
-    if (restored.group !== null && !validGroups.has(restored.group)) restored.group = null;
-    if (asCopy) {
-      restored.id = nextId++;
-      restored.name += '（恢复副本）';
-      for (const chapter of restored.chapters) chapter.id = crypto.randomUUID();
-      result.books.push(restored);
-    } else {
-      const index = result.books.findIndex(book => book.id === restored.id);
-      if (index >= 0) result.books[index] = restored; else result.books.push(restored);
-      if (entry.reading[restored.id]) result.reading[restored.id] = clone(entry.reading[restored.id]);
-      Object.assign(result.editing, clone(entry.editing));
-    }
-  }
-  // Keep the source recovery record until the user explicitly removes it.
-  return result;
 }
 
 function object(value: any): value is Record<string, any> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -106,7 +30,7 @@ export function validateLibrary(value: unknown): asserts value is Library {
       if (child !== null && typeof child === 'object') pending.push(child);
     }
   }
-  requireValue(Array.isArray(value.books) && Array.isArray(value.groups) && Array.isArray(value.recovery), '缺少书籍、分组或恢复记录');
+  requireValue(Array.isArray(value.books) && Array.isArray(value.groups), '缺少书籍或分组');
   const groups = new Set<number>();
   for (const group of value.groups) {
     requireValue(object(group) && Number.isSafeInteger(group.id) && typeof group.name === 'string' && !groups.has(group.id), '分组无效或 ID 重复');
@@ -155,23 +79,14 @@ export function validateLibrary(value: unknown): asserts value is Library {
     const position = value.reading[book.id];
     if (position && book.chapters.length) requireValue(position.chapter < book.chapters.length && (!position.chapterId || book.chapters.some((chapter: Chapter) => chapter.id === position.chapterId)), '阅读位置引用不存在的章节');
   }
-  requireValue(value.recovery.length <= 50, '恢复记录过多');
-  const recordIds = new Set<string>();
-  for (const entry of value.recovery) {
-    requireValue(object(entry) && typeof entry.id === 'string' && !recordIds.has(entry.id) && typeof entry.label === 'string' && typeof entry.date === 'string' && Array.isArray(entry.before) && Array.isArray(entry.after) && object(entry.reading) && object(entry.editing), '恢复记录错误');
-    recordIds.add(entry.id);
-    if (entry.group) requireValue(object(entry.group) && Number.isSafeInteger(entry.group.id) && typeof entry.group.name === 'string', '历史分组无效');
-    checkBooks(entry.before, false);
-    checkBooks(entry.after, false);
-    checkPositions(entry.reading, true);
-    checkPositions(entry.editing, false);
-  }
   if (value.restorePoint != null) {
     requireValue(object(value.restorePoint) && value.restorePoint.restorePoint == null, '恢复前书库结构错误');
     validateLibrary(value.restorePoint);
   }
 }
 const BACKUP_LIMIT = 256 * 1024 * 1024;
+/** 备份包含的字段（版本 2）：不含 restorePoint。 */
+const BACKUP_FIELDS = ['books', 'groups', 'view', 'prefs', 'toolbars', 'reading', 'readPrefs', 'editing'] as const;
 export function utf8ByteLength(text: string): number {
   let bytes = 0;
   for (let i = 0; i < text.length; i++) {
@@ -189,20 +104,22 @@ async function digest(text: string) {
 }
 export async function encodeBackup(state: Library) {
   // Validate and capture synchronously before hashing; no mutable references survive the await.
-  const data = Object.fromEntries(persistentFields.map(key => [key, state[key] ?? (key === 'recovery' ? [] : key === 'restorePoint' ? null : {})])) as Library;
+  const data = Object.fromEntries(BACKUP_FIELDS.map(key => [key, clone(state[key] ?? (key === 'books' || key === 'groups' ? [] : {}))])) as Library;
   validateLibrary(data);
   const payload = JSON.stringify(data);
-  if (utf8ByteLength(payload) > BACKUP_LIMIT) throw new Error('备份超过当前 256MiB 上限，请先清理不需要的恢复记录。');
-  const encoded = JSON.stringify({ format: 'local-editing-backup', version: 1, created: new Date().toISOString(), sha256: await digest(payload), payload });
-  if (utf8ByteLength(encoded) > BACKUP_LIMIT) throw new Error('备份超过当前 256MiB 上限，请先清理不需要的恢复记录。');
+  if (utf8ByteLength(payload) > BACKUP_LIMIT) throw new Error('备份超过 256MiB 上限。');
+  const encoded = JSON.stringify({ format: 'local-editing-backup', version: 2, created: new Date().toISOString(), sha256: await digest(payload), payload });
+  if (utf8ByteLength(encoded) > BACKUP_LIMIT) throw new Error('备份超过 256MiB 上限。');
   return encoded;
 }
 export async function decodeBackup(text: string): Promise<{ data: Library; created: string }> {
   requireValue(utf8ByteLength(text) <= BACKUP_LIMIT, '备份超过当前 256MiB 上限');
   const backup = JSON.parse(text);
-  requireValue(object(backup) && backup.format === 'local-editing-backup' && backup.version === 1 && typeof backup.payload === 'string', '不是支持的完整备份文件');
+  requireValue(object(backup) && backup.format === 'local-editing-backup' && (backup.version === 1 || backup.version === 2) && typeof backup.payload === 'string', '不是支持的完整备份文件');
   requireValue(await digest(backup.payload) === backup.sha256, '内容校验失败，文件可能已损坏');
   const data = JSON.parse(backup.payload);
+  // 版本 1 的备份里可能有恢复记录和恢复点；导入时去掉这两项。
+  if (backup.version === 1) { delete data.recovery; delete data.restorePoint; }
   validateLibrary(data);
   return { data, created: String(backup.created) };
 }

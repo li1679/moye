@@ -15,8 +15,7 @@ import { mountReader } from './features/reader/continuous';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
-import { createRecoveryFlows } from './features/recovery/flows';
-import { checkpoint, clone } from './features/recovery/model';
+import { createBackupFlows } from './features/backup/flows';
 import { SearchClient } from './features/editor/search-client';
 import { createSettings } from './ui/settings';
 
@@ -76,7 +75,6 @@ const state = await persistState({
     bottom: ["keyboard", "find", "top", "bottom", null, null],
   },
   reading: {},
-  recovery: [],
   restorePoint: null,
   editing: {},
   readPrefs: {
@@ -107,17 +105,7 @@ const app = $("#app"),
   sheet = $("#sheet");
 const book = () => state.books.find((b) => b.id === state.book);
 const txtFlows = createTxtFlows({ state, openSheet, closeSheet, render: () => render(), toast });
-const recoveryFlows = createRecoveryFlows({ state, openSheet, prepare: () => disposeReadingEditing() });
-function rememberChange(label, before, after) {
-  checkpoint(state, label, before, after);
-}
-function rememberChapters(label, changes) {
-  const before = book();
-  const updates = new Map(changes.map(change => [change.chapter.id, change.after]));
-  const after = { ...before, chapters: before.chapters.map(chapter => updates.has(chapter.id) ? { ...chapter, body: updates.get(chapter.id) } : chapter) };
-  if (changes.some(change => !before.chapters.some(chapter => chapter.id === change.chapter.id))) throw new Error('章节已变化，请重试');
-  rememberChange(label, [before], [after]);
-}
+const backupFlows = createBackupFlows({ state, openSheet, prepare: () => disposeReadingEditing() });
 const chapter = () => book()?.chapters[state.chapter];
 const history = new ChapterHistory();
 let composition = null;
@@ -742,7 +730,6 @@ async function action(a) {
               ...(state.folder === null ? [
                 ["file-input", "导入 TXT", "import"],
                 ["folder-plus", "新建分组", "new-group"],
-                ["history", "误操作恢复", "recovery"],
                 ["archive", "完整备份与恢复", "backup"],
               ] : []),
               ["square-check-big", "管理作品", "batch"],
@@ -796,11 +783,11 @@ async function action(a) {
     const affected = state.books.filter(b => b.group === state.activeGroup);
     const remaining = [...state.groups.filter(g => g.id !== state.activeGroup), ...state.books.filter(b => b.group === null), ...affected];
     let nextOrder = Math.max(-1, ...remaining.map(item => item.libraryOrder ?? -1)) + 1;
-    const after = affected.map(b => ({ ...clone(b), group: null, libraryOrder: b.libraryOrder ?? nextOrder++ }));
-    checkpoint(state, '删除分组', affected, after, state.groups.find(g => g.id === state.activeGroup));
     state.books.forEach((b) => {
-      const changed = after.find(item => item.id === b.id);
-      if (changed) { b.group = null; b.libraryOrder = changed.libraryOrder; }
+      if (affected.includes(b)) {
+        b.group = null;
+        b.libraryOrder = b.libraryOrder ?? nextOrder++;
+      }
     });
     state.groups = state.groups.filter((g) => g.id !== state.activeGroup);
     state.folder = null;
@@ -867,7 +854,6 @@ async function action(a) {
     return;
   }
   if (kind === "confirm-books") {
-    rememberChange('删除书籍', state.books.filter(b => state.selected.has(b.id)), []);
     state.books = state.books.filter((b) => !state.selected.has(b.id));
     state.selected.clear();
     state.batch = false;
@@ -883,7 +869,6 @@ async function action(a) {
         ["pencil-line", "修改信息", "edit-book"],
         ["square-check-big", "管理章节", "manage-chapters"],
         ["pilcrow", "全书排版", "format-book"],
-        ["history", "误操作恢复", "recovery"],
         ["search", "本书搜索", "book-search"],
         ["file-input", "导入章节", "import"],
         ["file-output", "导出书籍", "export-book"],
@@ -909,7 +894,6 @@ async function action(a) {
     return;
   }
   if (kind === "confirm-book") {
-    rememberChange('删除《' + book().name + '》', [book()], []);
     state.books = state.books.filter((b) => b.id !== state.book);
     state.page = "home";
     closeSheet();
@@ -955,9 +939,6 @@ async function action(a) {
     const c = book().chapters.find(c => c.id === arg);
     if (!c) throw new Error('章节已不存在');
     const next = book().chapters.filter(item => item !== c);
-    const after = clone(book());
-    after.chapters = next.map(item => clone(item));
-    rememberChange('删除章节 · ' + book().name, [book()], [after]);
     updateChapters(next);
     closeSheet();
     render();
@@ -970,9 +951,6 @@ async function action(a) {
     return;
   }
   if (kind === "confirm-chapters") {
-    const after = clone(book());
-    after.chapters = book().chapters.filter(c => !state.selectedChapters.has(c)).map(c => clone(c));
-    rememberChange('删除章节 · ' + book().name, [book()], [after]);
     updateChapters(book().chapters.filter(c => !state.selectedChapters.has(c)));
     state.selectedChapters.clear();
     closeSheet();
@@ -1225,7 +1203,7 @@ async function action(a) {
       pendingReplace = targets.filter(c => c.body.includes(q)).map(c => ({ chapter: c, before: c.body, after: replaceText(c.body, q, replacement) })).filter(change => change.before !== change.after);
       if (!pendingReplace.length) { toast('没有需要替换的内容'); return; }
       const total = pendingReplace.reduce((sum, change) => sum + change.before.split(q).length - 1, 0);
-      openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。修改前版本将保存在误操作恢复中，重启后仍可恢复。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
+      openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
       return;
     }
     if (!target?.body.includes(q)) {
@@ -1234,7 +1212,6 @@ async function action(a) {
     }
     const offset = kind === 'replace-one' ? hit.offset : undefined;
     const nextText = replaceText(target.body, q, $("#replacement").value, offset);
-    if (nextText !== target.body) rememberChapters('查找替换 · ' + book().name, [{ chapter: target, after: nextText }]);
     commitBody(nextText, target);
     selectedMatch = null;
     searchPage = 0;
@@ -1247,7 +1224,6 @@ async function action(a) {
     const changes = pendingReplace;
     if (!changes?.length) return;
     if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览替换');
-    rememberChapters('全书替换 · ' + book().name, changes);
     for (const change of changes) commitBody(change.after, change.chapter);
     pendingReplace = null;
     closeSheet();
@@ -1271,7 +1247,6 @@ async function action(a) {
     const changes = pendingFormat;
     if (!changes?.length) return;
     if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览排版');
-    rememberChapters('排版 · ' + book().name, changes);
     for (const change of changes) commitBody(change.after, change.chapter);
     pendingFormat = null;
     closeSheet();
@@ -1307,7 +1282,7 @@ async function action(a) {
     return;
   }
   if (kind === "cache") {
-    openSheet('清理缓存', '<p class="hint">只清理临时文件，不删除书籍、设置、恢复记录或备份。</p><button class="primary" data-action="clear-cache">清理缓存</button><p id="cache-result" role="status"></p>');
+    openSheet('清理缓存', '<p class="hint">只清理临时文件，不删除书籍、设置或备份。</p><button class="primary" data-action="clear-cache">清理缓存</button><p id="cache-result" role="status"></p>');
     return;
   }
   if (kind === 'clear-cache') {
@@ -1321,8 +1296,7 @@ async function action(a) {
     finally { button.disabled = false; }
     return;
   }
-  if (kind === 'recovery') { recoveryFlows.recovery(); return; }
-  if (kind === 'backup') { recoveryFlows.backup(); return; }
+  if (kind === 'backup') { backupFlows.backup(); return; }
   if (kind === "about") {
     openSheet(
       "关于",

@@ -5,7 +5,7 @@ import { openStorage, type Row } from './storage';
 type Chapter = { id?: string; name: string; body: string; [key: string]: unknown };
 type Book = { id: number; chapters: Chapter[]; [key: string]: unknown };
 type LibraryState = { books: Book[]; [key: string]: unknown };
-export const persistentFields = ['books', 'groups', 'view', 'prefs', 'toolbars', 'reading', 'readPrefs', 'editing', 'recovery', 'restorePoint'];
+export const persistentFields = ['books', 'groups', 'view', 'prefs', 'toolbars', 'reading', 'readPrefs', 'editing', 'restorePoint'];
 const fields = persistentFields.filter(field => field !== 'books');
 const replacers = new WeakMap<object, (value: LibraryState) => Promise<void>>();
 const savers = new WeakMap<object, () => Promise<void>>();
