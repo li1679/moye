@@ -31,7 +31,7 @@ export async function persistState<T extends LibraryState>(initial: T): Promise<
   const report = (message: string, failed = false) => { badge.hidden = !failed; badge.textContent = message; badge.dataset.failed = String(failed); };
   report('正在读取');
   const storage = await openStorage();
-  let saved = new Map((await storage.read()).map(row => [row.id, row.value]));
+  let saved = await storage.read();
   if (saved.size) {
     if (saved.get('schema') !== '1') throw new Error('不支持的数据库版本，未覆盖原数据');
     const read = (id: string) => { const value = saved.get(id); if (value === undefined) throw new Error('数据库缺少记录：' + id); return JSON.parse(value); };
