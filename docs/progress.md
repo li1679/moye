@@ -40,7 +40,8 @@
 
 ## 第 2 批（进行中；当前分支 batch-2-split，从合并后的 main 切出）
 - [x] 2.1 基础模块（app/core/dom.ts、app/core/state.ts、app/kit/ui.ts 已建立；prototype.js 的 $/esc/icon/ib/toolMenu 与初始状态改为从这些模块导入；ib 的动作名特殊处理已删，阅读器顶栏直接传"本书搜索"。95 个用例通过）
-- [ ] 2.2 动作表　- [ ] 2.3 核心模块
+- [x] 2.2 动作表（action() 的 if 链改为 handlers 映射 + dispatch()：共 80 个 kind 与原分支一一对应，多 kind 共用分支按方案用同一函数注册多次；"切换页面前先 dispose"的判断移入 dispatch；match-hit 中原对完整动作字符串的比较改写为 'match-hit:' + arg（生成格式不变，等价）；prototype.js 1598→1602 行。typecheck 0 错、95 用例通过、build 通过）
+- [ ] 2.3 核心模块
 - [ ] 2.4 书架与"我的"　- [ ] 2.5 章节页　- [ ] 2.6 编辑器　- [ ] 2.7 阅读器
 - [ ] 2.8 页面布局　- [ ] 2.9 搜索　- [ ] 2.10 表单与原生监听
 - [ ] 2.11 组装入口，删除 prototype.js　- [ ] 2.12 清理　- [ ] 2.13 本批收尾

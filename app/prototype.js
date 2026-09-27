@@ -595,59 +595,110 @@ async function applyFormat(all = false) {
   const targets = all ? book().chapters : [chapter()];
   pendingFormat = targets.map(c => ({ chapter: c, before: c.body, after: formatText(c.body, state.prefs) })).filter(change => change.before !== change.after);
   if (!pendingFormat.length) { closeSheet(); return; }
-  await action('apply-format:' + (all ? 'book' : 'chapter'));
+  await dispatch('apply-format:' + (all ? 'book' : 'chapter'));
 }
-async function action(a) {
-  const [kind, arg, arg2, arg3] = a.split(":");
-  if (['tab', 'home', 'book', 'chapters', 'chapter', 'jump-chapter', 'match-hit'].includes(kind) && !(kind === 'match-hit' && $('#replacement'))) {
-    disposeReadingEditing();
+function openChapter(arg) {
+  state.chapter = Number(arg);
+  if (state.page !== "reader") state.page = "editor";
+  else state.reading[state.book] = { chapter: state.chapter, scroll: 0 };
+  closeSheet();
+  render();
+}
+function openBookForm(_arg, _arg2, _arg3, kind) {
+  bookForm(kind === "edit-book");
+}
+function chapterSelection(_arg, _arg2, _arg3, kind) {
+  const chapters = book().chapters;
+  const all = chapters.every(c => state.selectedChapters.has(c));
+  if (kind === "invert-chapters") {
+    state.selectedChapters = new Set(chapters.filter(c => !state.selectedChapters.has(c)));
+  } else {
+    state.selectedChapters = new Set(all ? [] : chapters);
   }
-  if (kind === "close") {
-    closeSheet();
+  updateChapterSelection();
+}
+function openSearch(_arg, _arg2, _arg3, kind) {
+  search(
+    kind === "global-search"
+      ? "global"
+      : kind === "chapter-search"
+        ? "chapter"
+        : "book",
+  );
+}
+async function applyReplace(_arg, _arg2, _arg3, kind) {
+  const q = $("#query").value;
+  if (!q) {
+    toast("先输入查找文本");
     return;
   }
-  if (kind === 'notice-action') {
+  const targets = $('#query').dataset.scope === 'book' ? book().chapters : [chapter()];
+  const hit = selectedMatch || currentHits[0];
+  const target = kind === 'replace-one' ? targets.find(c => c.id === hit?.chapterId) : chapter();
+  if (kind === 'replace' && $('#query').dataset.scope === 'book') {
+    const replacement = $("#replacement").value;
+    pendingReplace = targets.filter(c => c.body.includes(q)).map(c => ({ chapter: c, before: c.body, after: replaceText(c.body, q, replacement) })).filter(change => change.before !== change.after);
+    if (!pendingReplace.length) { toast('没有需要替换的内容'); return; }
+    const total = pendingReplace.reduce((sum, change) => sum + change.before.split(q).length - 1, 0);
+    openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。离开这本书之前，可以在书籍菜单里撤销。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
+    return;
+  }
+  if (!target?.body.includes(q)) {
+    toast("没有匹配文本，请等待搜索完成");
+    return;
+  }
+  const offset = kind === 'replace-one' ? hit.offset : undefined;
+  const nextText = replaceText(target.body, q, $("#replacement").value, offset);
+  commitBody(nextText, target);
+  selectedMatch = null;
+  searchPage = 0;
+  searchResults();
+  await saveNow(state);
+  toast(kind === 'replace-one' ? '已替换这一处，可撤销' : '已替换本章全部匹配，可撤销');
+}
+function exportText(_arg, _arg2, _arg3, kind) {
+  txtFlows.openExport(book(), kind === "export-book" ? undefined : chapter());
+}
+const handlers = {
+  close() {
+    closeSheet();
+  },
+  'notice-action'() {
     const run = toastAction;
     clearTimeout(toastTimer);
     const notice = $('#notice');
     notice.classList.remove('visible', 'with-action');
     toastAction = null;
     run?.();
-    return;
-  }
-  if (kind === 'sheet-back') {
+  },
+  'sheet-back'() {
     sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
-    return;
-  }
-  if (kind === "tab") {
+  },
+  tab(arg) {
     state.tab = arg;
     state.page = "home";
     state.folder = null;
     state.batch = false;
     render();
-    return;
-  }
-  if (kind === "home") {
+  },
+  home() {
     state.page = "home";
     state.readerControls = false;
     closeSheet();
     render();
-    return;
-  }
-  if (kind === "view") {
+  },
+  view(arg) {
     state.view = arg;
     closeSheet();
     render();
-    return;
-  }
-  if (kind === "folder") {
+  },
+  folder(arg) {
     state.batch = false;
     state.selected.clear();
     state.folder = arg === "root" ? null : Number(arg);
     render();
-    return;
-  }
-  if (kind === "book") {
+  },
+  book(arg) {
     const id = Number(arg);
     if (state.batch) {
       state.selected.has(id)
@@ -665,23 +716,15 @@ async function action(a) {
     state.page = state.tab === "read" ? "reader" : "chapters";
     state.readerControls = false;
     render();
-    return;
-  }
-  if (kind === "chapters") {
+  },
+  chapters() {
     state.page = "chapters";
     closeSheet();
     render();
-    return;
-  }
-  if (kind === "chapter" || kind === "jump-chapter") {
-    state.chapter = Number(arg);
-    if (state.page !== "reader") state.page = "editor";
-    else state.reading[state.book] = { chapter: state.chapter, scroll: 0 };
-    closeSheet();
-    render();
-    return;
-  }
-  if (kind === "home-menu") {
+  },
+  chapter: openChapter,
+  'jump-chapter': openChapter,
+  'home-menu'() {
     const viewItem =
       state.view === "grid"
         ? ["list", "切换为列表模式", "view:list"]
@@ -704,48 +747,39 @@ async function action(a) {
             ],
       ),
     );
-    return;
-  }
-  if (kind === "new-book" || kind === "edit-book") {
-    bookForm(kind === "edit-book");
-    return;
-  }
-  if (kind === "choose-cover") {
+  },
+  'new-book': openBookForm,
+  'edit-book': openBookForm,
+  'choose-cover'() {
     $("#cover-file").click();
-    return;
-  }
-  if (kind === "new-group") {
+  },
+  'new-group'() {
     inputForm("新建分组", "分组名称", "group");
-    return;
-  }
-  if (kind === "new-chapter") {
+  },
+  'new-chapter'() {
     book().chapters.push({name: "第" + (book().chapters.length + 1) + "章", body: ""});
     render();
-    return;
-  }
-  if (kind === "group-menu") {
+  },
+  'group-menu'(arg) {
     state.activeGroup = Number(arg);
     const g = state.groups.find((g) => g.id === state.activeGroup);
     openSheet(
       g.name,
       `<button class="row" data-action="rename-group"><span>重命名分组</span>${icon("pencil")}</button><button class="row" data-action="delete-group"><span>删除分组</span>${icon("trash-2")}</button>`,
     );
-    return;
-  }
-  if (kind === "rename-group") {
+  },
+  'rename-group'() {
     inputForm(
       "重命名分组",
       "分组名称",
       "rename-group",
       state.groups.find((g) => g.id === state.activeGroup).name,
     );
-    return;
-  }
-  if (kind === "delete-group") {
+  },
+  'delete-group'() {
     confirmSheet("删除分组", "分组中的书籍将移回书架。", "confirm-group");
-    return;
-  }
-  if (kind === "confirm-group") {
+  },
+  'confirm-group'() {
     const affected = state.books.filter(b => b.group === state.activeGroup);
     const remaining = [...state.groups.filter(g => g.id !== state.activeGroup), ...state.books.filter(b => b.group === null), ...affected];
     let nextOrder = Math.max(-1, ...remaining.map(item => item.libraryOrder ?? -1)) + 1;
@@ -759,16 +793,14 @@ async function action(a) {
     state.folder = null;
     closeSheet();
     render();
-    return;
-  }
-  if (kind === "batch") {
+  },
+  batch() {
     state.batch = !state.batch;
     state.selected.clear();
     closeSheet();
     render();
-    return;
-  }
-  if (kind === "select-all") {
+  },
+  'select-all'() {
     const ids = state.books
       .filter((b) => b.group === state.folder)
       .map((b) => b.id);
@@ -777,9 +809,8 @@ async function action(a) {
       all ? state.selected.delete(id) : state.selected.add(id),
     );
     render();
-    return;
-  }
-  if (kind === "move") {
+  },
+  move() {
     if (!state.selected.size) {
       toast("先选择书籍");
       return;
@@ -794,9 +825,8 @@ async function action(a) {
           )
           .join(""),
     );
-    return;
-  }
-  if (kind === "move-to") {
+  },
+  'move-to'(arg) {
     const target = arg === "root" ? null : Number(arg);
     state.books.forEach((b) => {
       if (state.selected.has(b.id)) {
@@ -808,9 +838,8 @@ async function action(a) {
     state.selected.clear();
     closeSheet();
     render();
-    return;
-  }
-  if (kind === "delete-books") {
+  },
+  'delete-books'() {
     if (!state.selected.size) {
       toast("先选择书籍");
       return;
@@ -820,9 +849,8 @@ async function action(a) {
       `删除选中的 ${state.selected.size} 本书？删除后 5 秒内可以撤销。`,
       "confirm-books",
     );
-    return;
-  }
-  if (kind === "confirm-books") {
+  },
+  'confirm-books'() {
     const removed = state.books.map((b, index) => ({ b, index })).filter(({ b }) => state.selected.has(b.id));
     const positions = removed.map(({ b }) => ({ id: b.id, reading: state.reading[b.id], editing: Object.fromEntries(b.chapters.filter(c => state.editing[c.id]).map(c => [c.id, state.editing[c.id]])) }));
     state.books = state.books.filter((b) => !state.selected.has(b.id));
@@ -845,9 +873,8 @@ async function action(a) {
       }
       render();
     } });
-    return;
-  }
-  if (kind === "book-menu") {
+  },
+  'book-menu'() {
     const pending = pendingBookUndo(state.book);
     openSheet(
       "书籍操作",
@@ -863,25 +890,22 @@ async function action(a) {
         ["trash-2", "删除书籍", "delete-book", true],
       ]),
     );
-    return;
-  }
-  if (kind === "details") {
+  },
+  details() {
     const b = book();
     openSheet(
       "书籍详情",
       `<div class="cover-picker">${cover(b)}</div><h2>${esc(b.name)}</h2><p class="hint">${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${bookWords(b)} 字</p><p class="hint">${esc(b.description || "暂无简介")}</p>`,
     );
-    return;
-  }
-  if (kind === "delete-book") {
+  },
+  'delete-book'() {
     confirmSheet(
       "删除书籍",
       `删除《${book().name}》及其章节？删除后 5 秒内可以撤销。`,
       "confirm-book",
     );
-    return;
-  }
-  if (kind === "confirm-book") {
+  },
+  'confirm-book'() {
     const b = book();
     const index = state.books.indexOf(b);
     const reading = state.reading[b.id];
@@ -899,44 +923,30 @@ async function action(a) {
       for (const [id, position] of Object.entries(editing)) state.editing[id] = position;
       render();
     } });
-    return;
-  }
-  if (kind === "manage-chapters") {
+  },
+  'manage-chapters'() {
     manageChapters();
-    return;
-  }
-  if (kind === "finish-chapters") {
+  },
+  'finish-chapters'() {
     state.chapterBatch = false;
     state.selectedChapters.clear();
     render();
-    return;
-  }
-  if (kind === "select-chapter") {
+  },
+  'select-chapter'(arg) {
     const c = book().chapters[Number(arg)];
     state.selectedChapters.has(c) ? state.selectedChapters.delete(c) : state.selectedChapters.add(c);
     updateChapterSelection();
-    return;
-  }
-  if (kind === "select-all-chapters" || kind === "invert-chapters") {
-    const chapters = book().chapters;
-    const all = chapters.every(c => state.selectedChapters.has(c));
-    if (kind === "invert-chapters") {
-      state.selectedChapters = new Set(chapters.filter(c => !state.selectedChapters.has(c)));
-    } else {
-      state.selectedChapters = new Set(all ? [] : chapters);
-    }
-    updateChapterSelection();
-    return;
-  }
-  if (kind === 'delete-chapter') {
+  },
+  'select-all-chapters': chapterSelection,
+  'invert-chapters': chapterSelection,
+  'delete-chapter'(arg) {
     const c = book().chapters[Number(arg)];
     confirmSheet('删除章节', '确定删除《' + c.name + '》？删除后 5 秒内可以撤销。', 'confirm-single-chapter:' + c.id);
     returnFocus = $('[data-action="chapter:' + arg + '"]');
     const swiped = returnFocus?.closest('.chapter-swipe');
     sheet.addEventListener('close', () => swiped?.classList.remove('swiped'), { once: true });
-    return;
-  }
-  if (kind === 'confirm-single-chapter') {
+  },
+  async 'confirm-single-chapter'(arg) {
     const b = book();
     const c = b.chapters.find(item => item.id === arg);
     if (!c) throw new Error('章节已不存在');
@@ -953,14 +963,12 @@ async function action(a) {
       if (position) state.editing[c.id] = position;
       render();
     } });
-    return;
-  }
-  if (kind === "delete-chapters") {
+  },
+  'delete-chapters'() {
     if (!state.selectedChapters.size) return;
     confirmSheet("删除章节", "删除选中的 " + state.selectedChapters.size + " 个章节？删除后 5 秒内可以撤销。", "confirm-chapters");
-    return;
-  }
-  if (kind === "confirm-chapters") {
+  },
+  'confirm-chapters'() {
     const b = book();
     const removed = b.chapters.map((c, index) => ({ c, index, position: state.editing[c.id] })).filter(({ c }) => state.selectedChapters.has(c)).sort((x, y) => x.index - y.index);
     updateChapters(b.chapters.filter(c => !state.selectedChapters.has(c)), b);
@@ -977,34 +985,21 @@ async function action(a) {
       }
       render();
     } });
-    return;
-  }
-  if (
-    kind === "global-search" ||
-    kind === "book-search" ||
-    kind === "chapter-search"
-  ) {
-    search(
-      kind === "global-search"
-        ? "global"
-        : kind === "chapter-search"
-          ? "chapter"
-          : "book",
-    );
-    return;
-  }
-  if (kind === 'search-page') {
+  },
+  'global-search': openSearch,
+  'book-search': openSearch,
+  'chapter-search': openSearch,
+  'search-page'(arg) {
     searchPage = Math.max(0, searchPage + Number(arg));
     selectedMatch = null;
     searchResults();
-    return;
-  }
-  if (kind === "match-hit") {
+  },
+  'match-hit'(arg) {
     const hit = currentHits[Number(arg)];
     if (!hit) return;
     if ($("#replacement")) {
       selectedMatch = hit;
-      sheet.querySelectorAll('.result').forEach(element => element.setAttribute('aria-pressed', String(element.dataset.action === a)));
+      sheet.querySelectorAll('.result').forEach(element => element.setAttribute('aria-pressed', String(element.dataset.action === 'match-hit:' + arg)));
       return;
     }
     const targetBook = state.books.find(b => b.id === hit.bookId);
@@ -1021,27 +1016,22 @@ async function action(a) {
     closeSheet();
     render();
     requestAnimationFrame(() => locateText(hit.offset, hit.match.length));
-    return;
-  }
-  if (kind === "title-search") {
+  },
+  'title-search'() {
     searchBooks();
-    return;
-  }
-  if (kind === "found-book") {
+  },
+  'found-book'(arg) {
     closeSheet();
     state.folder = state.books.find((b) => b.id === Number(arg)).group;
-    action("book:" + arg);
-    return;
-  }
-  if (kind === "settings") {
+    dispatch("book:" + arg);
+  },
+  settings(arg) {
     settings(arg);
-    return;
-  }
-  if (kind === "grid") {
+  },
+  grid() {
     gridSettings();
-    return;
-  }
-  if (kind === "line") {
+  },
+  line(arg) {
     state.prefs.lineType = arg;
     applyAppearance();
     document.querySelectorAll('#sheet [data-action^="line:"]').forEach(button => {
@@ -1049,44 +1039,37 @@ async function action(a) {
       button.classList.toggle('selected', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
-    return;
-  }
-  if (kind === "layout") {
+  },
+  layout() {
     layoutSettings();
-    return;
-  }
-  if (kind === "reset-layout") {
+  },
+  'reset-layout'() {
     state.toolbars = {
       top: ["copy", "format", "undo", "redo", "directory", "settings"],
       bottom: ["keyboard", "find", "top", "bottom", null, null],
     };
     closeSheet();
     renderLayout();
-    return;
-  }
-  if (kind === "finish-layout") {
+  },
+  'finish-layout'() {
     state.layout = false;
     closeSheet();
     renderEditor();
     $(".editor-scroll").scrollTop = state.layoutScroll;
-    return;
-  }
-  if (kind === "slot") {
+  },
+  slot(arg, arg2) {
     slotPicker(arg, Number(arg2));
-    return;
-  }
-  if (kind === "remove-tool") {
+  },
+  'remove-tool'(arg, arg2) {
     state.toolbars[arg][Number(arg2)] = null;
     renderLayout();
-    return;
-  }
-  if (kind === "add-slot") {
+  },
+  'add-slot'(arg) {
     state.toolbars[arg].push(null);
     renderLayout();
     slotPicker(arg, state.toolbars[arg].length - 1);
-    return;
-  }
-  if (kind === "choose-tool") {
+  },
+  'choose-tool'(arg) {
     const { where, index } = state.activeSlot;
     for (const side of ["top", "bottom"])
       state.toolbars[side] = state.toolbars[side].map((id) =>
@@ -1095,15 +1078,14 @@ async function action(a) {
     state.toolbars[where][index] = arg;
     closeSheet();
     renderLayout();
-    return;
-  }
-  if (kind === "pref") {
+  },
+  pref(arg, arg2) {
     let value = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
     if (arg.startsWith("read")) {
       state.readPrefs[arg.slice(4)] = value;
       applyAppearance();
       // Keep the live controls, focus and panel scroll position intact.
-      document.querySelectorAll('#sheet [data-action^="pref:' + arg + ':"]').forEach(button => {
+      document.querySelectorAll('#sheet [data-action^="pref:' + arg + '"]').forEach(button => {
         button.classList.toggle('selected', button.dataset.action === 'pref:' + arg + ':' + arg2);
       });
       const custom = document.querySelector('#sheet [data-color="' + arg + '"]');
@@ -1113,23 +1095,20 @@ async function action(a) {
     state.prefs[arg] = value;
     applyAppearance();
     syncPreferenceControls();
-    return;
-  }
-  if (kind === "theme-dark") {
+  },
+  'theme-dark'() {
     state.prefs.paper = "#232527";
     state.prefs.color = "#dedede";
     applyAppearance();
     syncPreferenceControls();
-    return;
-  }
-  if (kind === "theme-light") {
+  },
+  'theme-light'(arg) {
     state.prefs.paper = arg;
     state.prefs.color = "#292d30";
     applyAppearance();
     syncPreferenceControls();
-    return;
-  }
-  if (kind === "editor-menu") {
+  },
+  'editor-menu'() {
     openSheet(
       "更多工具",
       toolMenu([
@@ -1139,13 +1118,11 @@ async function action(a) {
         ["list-minus", "网格线", "grid"],
       ]),
     );
-    return;
-  }
-  if (kind === "directory") {
+  },
+  directory() {
     directory();
-    return;
-  }
-  if (kind === "tool") {
+  },
+  async tool(arg) {
     if (arg === "settings") {
       settings();
       return;
@@ -1188,7 +1165,7 @@ async function action(a) {
       }
       $(".manuscript").textContent = chapter().body;
       $(".editor-heading").textContent = chapter().name;
-    scheduleWordCount(chapter().body);
+      scheduleWordCount(chapter().body);
       updateHistoryTools();
       if (document.activeElement?.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) {
         locateText(edit.offset, 0, edit.field === 'body' ? '.manuscript' : '.editor-heading');
@@ -1210,39 +1187,10 @@ async function action(a) {
       render();
       return;
     }
-  }
-  if (kind === "replace" || kind === "replace-one") {
-    const q = $("#query").value;
-    if (!q) {
-      toast("先输入查找文本");
-      return;
-    }
-    const targets = $('#query').dataset.scope === 'book' ? book().chapters : [chapter()];
-    const hit = selectedMatch || currentHits[0];
-    const target = kind === 'replace-one' ? targets.find(c => c.id === hit?.chapterId) : chapter();
-    if (kind === 'replace' && $('#query').dataset.scope === 'book') {
-      const replacement = $("#replacement").value;
-      pendingReplace = targets.filter(c => c.body.includes(q)).map(c => ({ chapter: c, before: c.body, after: replaceText(c.body, q, replacement) })).filter(change => change.before !== change.after);
-      if (!pendingReplace.length) { toast('没有需要替换的内容'); return; }
-      const total = pendingReplace.reduce((sum, change) => sum + change.before.split(q).length - 1, 0);
-      openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。离开这本书之前，可以在书籍菜单里撤销。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
-      return;
-    }
-    if (!target?.body.includes(q)) {
-      toast("没有匹配文本，请等待搜索完成");
-      return;
-    }
-    const offset = kind === 'replace-one' ? hit.offset : undefined;
-    const nextText = replaceText(target.body, q, $("#replacement").value, offset);
-    commitBody(nextText, target);
-    selectedMatch = null;
-    searchPage = 0;
-    searchResults();
-    await saveNow(state);
-    toast(kind === 'replace-one' ? '已替换这一处，可撤销' : '已替换本章全部匹配，可撤销');
-    return;
-  }
-  if (kind === 'confirm-book-replace') {
+  },
+  replace: applyReplace,
+  'replace-one': applyReplace,
+  async 'confirm-book-replace'() {
     const changes = pendingReplace;
     if (!changes?.length) return;
     if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览替换');
@@ -1252,21 +1200,16 @@ async function action(a) {
     closeSheet();
     await saveNow(state);
     toast('全书替换已保存');
-    return;
-  }
-  if (kind === "import") {
+  },
+  'import'() {
     txtFlows.openImport();
-    return;
-  }
-  if (kind === "export" || kind === "export-book") {
-    txtFlows.openExport(book(), kind === "export-book" ? undefined : chapter());
-    return;
-  }
-  if (kind === "format-book") {
+  },
+  export: exportText,
+  'export-book': exportText,
+  async 'format-book'() {
     await applyFormat(true);
-    return;
-  }
-  if (kind === 'apply-format') {
+  },
+  async 'apply-format'(arg) {
     const changes = pendingFormat;
     if (!changes?.length) return;
     if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览排版');
@@ -1276,9 +1219,8 @@ async function action(a) {
     closeSheet();
     render();
     await saveNow(state);
-    return;
-  }
-  if (kind === 'undo-book-change') {
+  },
+  async 'undo-book-change'() {
     const entry = takeBookUndo(state.book);
     if (!entry) return;
     const b = book();
@@ -1292,13 +1234,11 @@ async function action(a) {
     render();
     await saveNow(state);
     toast(skipped ? `已撤销${entry.label}，${skipped} 章之后改过，没有撤销` : `已撤销${entry.label}`);
-    return;
-  }
-  if (kind === "reader-settings") {
+  },
+  'reader-settings'() {
     readerSettings();
-    return;
-  }
-  if (kind === "night") {
+  },
+  night() {
     const p = state.readPrefs;
     const dark = p.night ?? p.paper === '#202123';
     const themes = p.themes || { day: { paper: '#ffffff', color: '#292d30' }, night: { paper: '#202123', color: '#dedede' } };
@@ -1309,23 +1249,19 @@ async function action(a) {
     applyAppearance();
     $('[data-action="night"]').innerHTML = nightLabel();
     icons();
-    return;
-  }
-  if (kind === "directory-sort") {
+  },
+  'directory-sort'() {
     directory(!state.directoryReverse);
-    return;
-  }
-  if (kind === "reader-step") {
+  },
+  'reader-step'(arg) {
     const target = state.chapter + Number(arg);
     if (target < 0 || target >= book().chapters.length) return;
     readerSession?.jump(target);
-    return;
-  }
-  if (kind === "cache") {
+  },
+  cache() {
     openSheet('清理缓存', '<p class="hint">只清理临时文件，不删除书籍、设置或备份。</p><button class="primary" data-action="clear-cache">清理缓存</button><p id="cache-result" role="status"></p>');
-    return;
-  }
-  if (kind === 'clear-cache') {
+  },
+  async 'clear-cache'() {
     const button = $('[data-action="clear-cache"]');
     button.disabled = true;
     try {
@@ -1334,16 +1270,24 @@ async function action(a) {
       $('#cache-result').textContent = '缓存已清理';
     } catch (error) { $('#cache-result').textContent = '清理失败：' + String(error); }
     finally { button.disabled = false; }
-    return;
-  }
-  if (kind === 'backup') { backupFlows.backup(); return; }
-  if (kind === "about") {
+  },
+  backup() {
+    backupFlows.backup();
+  },
+  about() {
     openSheet(
       "关于",
       `<div class="empty"><img src="/brand/moye.svg" alt="" width="72" height="72"><h2>墨页</h2><p class="hint">本地阅读，随心改文</p><p class="hint">支持自动保存、TXT 导入导出及完整备份。</p></div>`,
     );
-    return;
+  },
+};
+async function dispatch(a) {
+  const [kind, arg, arg2, arg3] = a.split(":");
+  if (['tab', 'home', 'book', 'chapters', 'chapter', 'jump-chapter', 'match-hit'].includes(kind) && !(kind === 'match-hit' && $('#replacement'))) {
+    disposeReadingEditing();
   }
+  const handler = Object.prototype.hasOwnProperty.call(handlers, kind) ? handlers[kind] : null;
+  if (handler) await handler(arg, arg2, arg3, kind);
 }
 let readingPointer = null;
 document.addEventListener('pointerdown', event => {
@@ -1363,7 +1307,7 @@ document.addEventListener("click", (e) => {
   if (e.target.closest(".drag-handle")) return;
   const target = e.target.closest("[data-action]");
   if (target) {
-    action(target.dataset.action).catch(error => {
+    dispatch(target.dataset.action).catch(error => {
       console.error('操作未完成', error);
       toast(error instanceof Error ? error.message : String(error));
     });
@@ -1396,7 +1340,7 @@ document.addEventListener('keydown', event => {
   if (key !== 'z' && key !== 'y') return;
   event.preventDefault();
   const redo = key === 'y' || event.shiftKey;
-  action('tool:' + (redo ? 'redo' : 'undo')).catch(error => toast(String(error)));
+  dispatch('tool:' + (redo ? 'redo' : 'undo')).catch(error => toast(String(error)));
 });
 document.addEventListener('pointerdown', event => {
   if (event.target.closest('[data-action="tool:undo"], [data-action="tool:redo"]')) event.preventDefault();
@@ -1407,7 +1351,7 @@ document.addEventListener('beforeinput', event => {
   if (!element.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) return;
   if (['historyUndo', 'historyRedo'].includes(event.inputType)) {
     event.preventDefault();
-    action('tool:' + (event.inputType === 'historyUndo' ? 'undo' : 'redo')).catch(error => toast(String(error)));
+    dispatch('tool:' + (event.inputType === 'historyUndo' ? 'undo' : 'redo')).catch(error => toast(String(error)));
     return;
   }
   if (composition || event.isComposing) return;
@@ -1617,13 +1561,13 @@ if (Capacitor.isNativePlatform()) {
       }
       if (closePicker()) return;
       if (sheet.open) { sheet.dispatchEvent(new Event('cancel', { cancelable: true })) && closeSheet(); return; }
-      if (state.chapterBatch) { await action('finish-chapters'); return; }
-      if (state.batch) { await action('batch'); return; }
-      if (state.layout) { await action('finish-layout'); return; }
-      if (state.page === 'editor') { await action('chapters'); return; }
-      if (state.page === 'reader' || state.page === 'chapters') { await action('home'); return; }
-      if (state.folder !== null) { await action('folder:root'); return; }
-      if (state.tab !== 'edit') { await action('tab:edit'); return; }
+      if (state.chapterBatch) { await dispatch('finish-chapters'); return; }
+      if (state.batch) { await dispatch('batch'); return; }
+      if (state.layout) { await dispatch('finish-layout'); return; }
+      if (state.page === 'editor') { await dispatch('chapters'); return; }
+      if (state.page === 'reader' || state.page === 'chapters') { await dispatch('home'); return; }
+      if (state.folder !== null) { await dispatch('folder:root'); return; }
+      if (state.tab !== 'edit') { await dispatch('tab:edit'); return; }
       await saveNow(state);
       await App.exitApp();
     } catch (error) { toast('返回未完成：' + String(error)); }
