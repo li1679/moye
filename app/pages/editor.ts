@@ -1,0 +1,516 @@
+import { Capacitor } from '@capacitor/core';
+import { Keyboard } from '@capacitor/keyboard';
+import { $, $$, esc } from '../core/dom';
+import { icon, ib, toolMenu, tools } from '../kit/ui';
+import { renderIcons as icons } from '../ui/icons';
+import { ChapterHistory, type HistoryHint } from '../features/editor/history';
+import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
+import { extractInputEdit, type InputEdit } from '../features/editor/input-session';
+import { createWordCountClient, type WordCountClient } from '../features/editor/word-count';
+import { editorText } from '../features/editor/dom-text';
+import { captureAnchor, restoreAnchor, captureSelection, restoreSelection } from '../features/editor/positions';
+import { mountReader } from '../features/reader/continuous';
+import { rememberBookChange } from '../features/editor/book-undo';
+import { saveNow } from '../data/autosave';
+import { applyAppearance } from '../features/appearance';
+import { openDirectory } from '../features/directory';
+import { needBook, needChapter } from '../core/library';
+import type { Chapter, Prefs, ReadPrefs, ToolId } from '../data/schema';
+import type { ActionHandler, Ctx, PageModule, ReaderSession } from '../core/context';
+
+// 2.7～2.9 搬走的部分由组装入口注入：阅读分支的夜间标签、布局渲染、搜索面板。
+export type EditorHelpers = {
+  nightLabel(): string;
+  renderLayout(): void;
+  search(scope?: string, replace?: boolean): void;
+  searchHit(): { chapterId: string; offset: number } | null;
+  afterReplace(): void;
+};
+
+export type EditorModule = PageModule & {
+  editor: Ctx['editor'];
+  reader: Ctx['reader'];
+  resetHistory(id?: string | null): void;
+  applyFormat(all?: boolean): Promise<void>;
+};
+
+type PendingChange = { chapter: Chapter; before: string; after: string };
+type PendingInput = { element: Element; target: Chapter; field: 'body' | 'name'; before: string; edit: InputEdit };
+type Composition = { target: Chapter; field: 'body' | 'name'; before: string };
+
+export function createEditorPage(ctx: Ctx, helpers: EditorHelpers): EditorModule {
+
+// 设置面板的键名来自模板字符串：数值/颜色/文本键写 string | number，开关键写 boolean。
+function setPanelValue(target: object, key: string, value: string | number | boolean): void {
+  Object.assign(target, { [key]: value });
+}
+
+// 网格线类型的四个按钮值；其他值视为无效动作忽略。
+const LINE_TYPES: readonly Prefs['lineType'][] = ['实线', '长虚线', '短虚线', '点线'];
+function isLineType(value: string): value is Prefs['lineType'] {
+  return LINE_TYPES.includes(value as Prefs['lineType']);
+}
+  const state = ctx.state;
+  const history = new ChapterHistory();
+  let historyChapterId: string | null = null;
+  let composition: Composition | null = null;
+  let readerSession: ReaderSession | null = null;
+  let disposeEditor: (() => void) | null = null;
+  let pendingInput: PendingInput | null = null;
+  let wordCountClient: WordCountClient | null = null;
+  let wordCountTimer: ReturnType<typeof setTimeout> | undefined;
+  let wordCountRevision = 0;
+  let pendingFormat: PendingChange[] | null = null;
+  let pendingReplace: PendingChange[] | null = null;
+
+  function resetHistory(id: string | null = null) {
+    if (historyChapterId === id) return;
+    history.clear();
+    historyChapterId = id;
+  }
+
+  function scheduleWordCount(value: string) {
+    const revision = ++wordCountRevision;
+    const target = ctx.chapter();
+    const label = $('#word-value');
+    clearTimeout(wordCountTimer);
+    wordCountTimer = setTimeout(() => {
+      wordCountClient ??= createWordCountClient();
+      wordCountClient.count(value).then(result => {
+        if (result !== null && revision === wordCountRevision && ctx.chapter() === target && label?.isConnected) label.textContent = String(result);
+      }).catch(() => {
+        if (revision === wordCountRevision && label?.isConnected) label.textContent = '—';
+      });
+    }, 200);
+  }
+
+  function toolbar(where: 'top' | 'bottom') {
+    return state.toolbars[where]
+      .filter((id): id is ToolId => id !== null)
+      .map((id) => ib(tools[id][0], tools[id][1], "tool:" + id))
+      .join("");
+  }
+
+  function updateHistoryTools() {
+    if (state.page !== 'editor' || state.layout) return;
+    const current = ctx.chapter();
+    if (!current) return;
+    for (const direction of ['undo', 'redo'] as const) {
+      $$<HTMLButtonElement>('.editor [data-action="tool:' + direction + '"]').forEach(button => {
+        button.disabled = !history.canApply(current, direction);
+      });
+    }
+  }
+
+  function commitBody(value: string, target?: Chapter) {
+    const t = target ?? needChapter(state);
+    if (state.page === 'editor' && t === ctx.chapter()) history.record(t, 'body', t.body, value);
+    t.body = value;
+    updateHistoryTools();
+    if (t !== ctx.chapter()) return;
+    const m = $(".manuscript");
+    if (m) m.textContent = value;
+    scheduleWordCount(value);
+  }
+
+  function locateText(offset: number, length = 0, selector = '.manuscript') {
+    const element = state.page === 'reader' && selector === '.manuscript' ? readerSession?.body() : $(selector);
+    if (!element?.firstChild) return;
+    // 渲染或命令之后调用；编辑器正文只有一个文本节点。
+    const node = element.firstChild;
+    if (node.nodeType !== Node.TEXT_NODE) return;
+    const range = document.createRange();
+    range.setStart(node, Math.min(offset, node.textContent?.length ?? 0));
+    range.setEnd(node, Math.min(offset + length, node.textContent?.length ?? 0));
+    if (state.page === 'editor') element.focus({ preventScroll: true });
+    const selection = getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    if (globalThis.CSS?.highlights && globalThis.Highlight) {
+      CSS.highlights.clear();
+      if (length) CSS.highlights.set('search-match', new Highlight(range));
+    }
+    const scroll = $('.editor-scroll');
+    if (scroll) scroll.scrollTop += range.getBoundingClientRect().top - scroll.getBoundingClientRect().top - scroll.clientHeight / 3;
+  }
+
+  async function applyFormat(all = false) {
+    const targets = all ? needBook(state).chapters : [needChapter(state)];
+    pendingFormat = targets.map(c => ({ chapter: c, before: c.body, after: formatText(c.body, state.prefs) })).filter(change => change.before !== change.after);
+    if (!pendingFormat.length) { ctx.closeSheet(); return; }
+    await ctx.action('apply-format:' + (all ? 'book' : 'chapter'));
+  }
+
+  async function applyReplace(_arg?: string, _arg2?: string, _arg3?: string, raw?: string) {
+    const kind = (raw ?? '').split(':')[0];
+    const q = $<HTMLInputElement>('#query').value;
+    if (!q) {
+      ctx.toast("先输入查找文本");
+      return;
+    }
+    const scope = $<HTMLInputElement>('#query').dataset.scope;
+    const targets = scope === 'book' ? needBook(state).chapters : [needChapter(state)];
+    const hit = helpers.searchHit();
+    const target = kind === 'replace-one' ? targets.find(c => c.id === hit?.chapterId) : needChapter(state);
+    if (kind === 'replace' && scope === 'book') {
+      const replacement = $<HTMLInputElement>('#replacement').value;
+      pendingReplace = targets.filter(c => c.body.includes(q)).map(c => ({ chapter: c, before: c.body, after: replaceText(c.body, q, replacement) })).filter(change => change.before !== change.after);
+      if (!pendingReplace.length) { ctx.toast('没有需要替换的内容'); return; }
+      const total = pendingReplace.reduce((sum, change) => sum + change.before.split(q).length - 1, 0);
+      ctx.openSheet('全书替换确认', `<p class="hint">将修改 ${pendingReplace.length} 章、${total} 处匹配。离开这本书之前，可以在书籍菜单里撤销。</p><div class="setting-label">查找文字</div><pre class="text-preview">${esc(q)}</pre><div class="setting-label">替换为</div><pre class="text-preview">${esc(replacement || '（删除匹配文字）')}</pre><button class="primary" data-action="confirm-book-replace">确认全书替换</button>`);
+      return;
+    }
+    if (!target?.body.includes(q)) {
+      ctx.toast("没有匹配文本，请等待搜索完成");
+      return;
+    }
+    const offset = kind === 'replace-one' && hit ? hit.offset : undefined;
+    const nextText = replaceText(target.body, q, $<HTMLInputElement>('#replacement').value, offset);
+    commitBody(nextText, target);
+    helpers.afterReplace();
+    await saveNow(state);
+    ctx.toast(kind === 'replace-one' ? '已替换这一处，可撤销' : '已替换本章全部匹配，可撤销');
+  }
+
+  function render() {
+    ctx.dispose();
+    if (state.layout) {
+      helpers.renderLayout();
+      return;
+    }
+    const c = ctx.chapter();
+    const reader = state.page === "reader";
+    if (!c) {
+      if (reader) {
+        ctx.app.innerHTML = `<main class="app-shell editor reader"><header class="topbar">${ib("chevron-left", "返回阅读书架", "home")}<div class="title">${esc(ctx.book()?.name)}</div></header><div class="empty">暂无章节</div></main>`;
+        icons();
+        return;
+      }
+      state.page = "chapters";
+      ctx.render();
+      return;
+    }
+    const b = needBook(state);
+    if (!reader) resetHistory(c.id ??= crypto.randomUUID());
+    ctx.app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + wordsOf(c) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${helpers.nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
+    icons();
+    applyAppearance(ctx);
+    updateHistoryTools();
+    $(".manuscript").textContent = c.body;
+    if (!reader) $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
+    const scroll = $(".editor-scroll");
+    if (!reader) {
+      c.id ??= crypto.randomUUID();
+      const body = $(".manuscript"), title = $(".editor-heading");
+      const previous = state.editing[c.id];
+      scroll.scrollTop = previous?.scroll || 0;
+      if (previous?.anchor) restoreAnchor(body, scroll, previous.anchor);
+      let position = previous?.selection;
+      if (position) restoreSelection(position.field === 'name' ? title : body, position);
+      const capture = () => {
+        const selected = captureSelection(body, 'body') || captureSelection(title, 'name');
+        if (selected) position = { start: selected.start, end: selected.end, backward: selected.backward, field: selected.field === 'name' ? 'name' : 'body' };
+        state.editing[c.id] = {
+          scroll: scroll.scrollTop, selection: position,
+          anchor: body.firstChild?.nodeType === Node.TEXT_NODE && body.childNodes.length === 1 ? captureAnchor(body, scroll) : undefined,
+        };
+      };
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const schedule = () => { clearTimeout(timer); timer = setTimeout(capture, 150); };
+      scroll.addEventListener('scroll', schedule, { passive: true });
+      document.addEventListener('selectionchange', schedule);
+      document.addEventListener('visibilitychange', capture);
+      disposeEditor = () => {
+        capture(); clearTimeout(timer);
+        scroll.removeEventListener('scroll', schedule);
+        document.removeEventListener('selectionchange', schedule);
+        document.removeEventListener('visibilitychange', capture);
+      };
+      ctx.onDispose(() => {
+        pendingInput = null;
+        clearTimeout(wordCountTimer);
+        wordCountRevision++;
+        wordCountClient?.dispose();
+        wordCountClient = null;
+      });
+      ctx.onDispose(() => { disposeEditor?.(); disposeEditor = null; });
+    } else {
+      b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
+      readerSession = mountReader(scroll, b.chapters, state.chapter, state.reading[b.id], (position, progress) => {
+        state.chapter = position.chapter;
+        state.reading[b.id] = position;
+        $('#progress-value').textContent = progress + '%';
+        $<HTMLInputElement>('.reader-progress input').value = String(progress);
+        $('.reader-footer span').textContent = b.chapters[position.chapter].name;
+        $<HTMLButtonElement>('[data-action="reader-step:-1"]').disabled = position.chapter === 0;
+        $<HTMLButtonElement>('[data-action="reader-step:1"]').disabled = position.chapter === b.chapters.length - 1;
+      }, ctx.toast);
+      ctx.onDispose(() => { readerSession?.destroy(); readerSession = null; });
+      applyAppearance(ctx);
+    }
+  }
+
+  // 编辑器的输入监听：组合输入、快捷键撤销、输入历史与字数、偏好开关。
+  function install() {
+    function finishComposition() {
+      if (!composition) return;
+      const { target, field, before } = composition;
+      history.record(target, field, before, target[field]);
+      composition = null;
+      updateHistoryTools();
+    }
+
+    document.addEventListener('compositionstart', (event) => {
+      pendingInput = null;
+      if (!(event.target instanceof HTMLElement)) return;
+      const field = event.target.matches('.manuscript[contenteditable]') ? 'body' : event.target.matches('.editor-heading[contenteditable]') ? 'name' : null;
+      if (field) {
+        const c = needChapter(state);
+        composition = { target: c, field, before: c[field] };
+      }
+    });
+    document.addEventListener('compositionend', finishComposition);
+    document.addEventListener('focusout', (event) => {
+      if (event.target instanceof HTMLElement && event.target.matches('.manuscript, .editor-heading')) finishComposition();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (!(event.target instanceof HTMLElement) || event.isComposing || !event.target.matches('.manuscript[contenteditable], .editor-heading[contenteditable]') || !(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      event.preventDefault();
+      const redo = key === 'y' || event.shiftKey;
+      ctx.action('tool:' + (redo ? 'redo' : 'undo')).catch(error => ctx.toast(String(error)));
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.target instanceof Element && event.target.closest('.editor:not(.reader) .editor-tools, .editor:not(.reader) .editor-bottom')) event.preventDefault();
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (event.target instanceof Element && event.target.closest('[data-action="tool:undo"], [data-action="tool:redo"]')) event.preventDefault();
+    });
+    document.addEventListener('beforeinput', (event) => {
+      pendingInput = null;
+      if (!(event.target instanceof HTMLElement)) return;
+      const element = event.target;
+      if (!element.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) return;
+      if (['historyUndo', 'historyRedo'].includes(event.inputType)) {
+        event.preventDefault();
+        ctx.action('tool:' + (event.inputType === 'historyUndo' ? 'undo' : 'redo')).catch(error => ctx.toast(String(error)));
+        return;
+      }
+      if (composition || event.isComposing) return;
+      const target = needChapter(state);
+      const field = element.matches('.manuscript') ? 'body' : 'name';
+      const before = target[field];
+      const selection = captureSelection(element, field);
+      const edit = selection && extractInputEdit(before, selection, event);
+      if (edit) pendingInput = { element, target, field, before, edit };
+    });
+    document.addEventListener('input', (e) => {
+      if (!(e.target instanceof HTMLElement)) return;
+      const el = e.target;
+      const pending = pendingInput;
+      pendingInput = null;
+      if (el.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) {
+        const target = needChapter(state);
+        const field = el.matches('.manuscript') ? 'body' : 'name';
+        const before = target[field];
+        const value = editorText(el);
+        let hint: HistoryHint | undefined;
+        if (pending?.element === el && pending.target === target && pending.field === field && pending.before === before && pending.edit.after === value) {
+          const { offset, before: removed } = pending.edit;
+          const insertedLength = value.length - before.length + removed.length;
+          hint = { offset, before: removed, after: value.slice(offset, offset + insertedLength) };
+        }
+        if (!composition) history.record(target, field, before, value, hint);
+        target[field] = value;
+        if (field === 'body') scheduleWordCount(value);
+        updateHistoryTools();
+      }
+      if (el instanceof HTMLInputElement && el.dataset.color) {
+        const key = el.dataset.color;
+        if (key.startsWith("read")) setPanelValue(state.readPrefs, key.slice(4), el.value);
+        else setPanelValue(state.prefs, key, el.value);
+        applyAppearance(ctx);
+      }
+    });
+    document.addEventListener('change', (e) => {
+      if (!(e.target instanceof Element)) return;
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.dataset.pref) {
+        setPanelValue(state.prefs, el.dataset.pref, el.checked);
+        applyAppearance(ctx);
+      }
+      if (el instanceof HTMLSelectElement && el.id === 'font-family') {
+        state.prefs.fontFamily = el.value === '宋体' ? '宋体' : '系统默认';
+        applyAppearance(ctx);
+      }
+    });
+  }
+
+  const actions: Record<string, ActionHandler> = {
+    settings(arg) {
+      ctx.settings.settings(arg);
+    },
+    grid() {
+      ctx.settings.gridSettings();
+    },
+    line(arg) {
+      if (arg === undefined || !isLineType(arg)) return;
+      state.prefs.lineType = arg;
+      applyAppearance(ctx);
+      document.querySelectorAll<HTMLElement>('#sheet [data-action^="line:"]').forEach(button => {
+        const selected = button.dataset.action === 'line:' + arg;
+        button.classList.toggle('selected', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      });
+    },
+    pref(arg, arg2) {
+      if (arg === undefined || arg2 === undefined) return;
+      const value: string | number = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
+      if (arg.startsWith("read")) {
+        setPanelValue(state.readPrefs, arg.slice(4), value);
+        applyAppearance(ctx);
+        // 保持面板控件、焦点和滚动位置不动。
+        document.querySelectorAll<HTMLElement>('#sheet [data-action^="pref:' + arg + '"]').forEach(button => {
+          button.classList.toggle('selected', button.dataset.action === 'pref:' + arg + ':' + arg2);
+        });
+        const custom = document.querySelector<HTMLInputElement>('#sheet [data-color="' + arg + '"]');
+        if (custom) custom.value = String(value);
+        return;
+      }
+      setPanelValue(state.prefs, arg, value);
+      applyAppearance(ctx);
+      ctx.settings.syncPreferenceControls();
+    },
+    'theme-dark'() {
+      state.prefs.paper = "#232527";
+      state.prefs.color = "#dedede";
+      applyAppearance(ctx);
+      ctx.settings.syncPreferenceControls();
+    },
+    'theme-light'(arg) {
+      if (arg === undefined) return;
+      state.prefs.paper = arg;
+      state.prefs.color = "#292d30";
+      applyAppearance(ctx);
+      ctx.settings.syncPreferenceControls();
+    },
+    'editor-menu'() {
+      ctx.openSheet(
+        "更多工具",
+        toolMenu([
+          ["search", "本章搜索", "chapter-search"],
+          ["file-output", "导出文档", "export"],
+          ["sliders-horizontal", "页面布局", "layout"],
+          ["list-minus", "网格线", "grid"],
+        ]),
+      );
+    },
+    async tool(arg) {
+      if (arg === "settings") {
+        ctx.settings.settings();
+        return;
+      }
+      if (arg === "directory") {
+        openDirectory(ctx);
+        return;
+      }
+      if (arg === "find") {
+        helpers.search("chapter", true);
+        return;
+      }
+      ctx.closeSheet();
+      if (arg === "top" || arg === "bottom") {
+        const scroll = $('.editor-scroll');
+        scroll.scrollTo({
+          top: arg === "top" ? 0 : scroll.scrollHeight,
+          behavior: "smooth",
+        });
+        return;
+      }
+      if (arg === "keyboard") {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        if (Capacitor.isNativePlatform()) await Keyboard.hide();
+        return;
+      }
+      if (arg === "copy") {
+        try {
+          await navigator.clipboard.writeText(needChapter(state).body);
+          ctx.toast("已复制本章正文");
+        } catch {
+          ctx.toast("浏览器未允许剪贴板访问");
+        }
+        return;
+      }
+      if (arg === "undo" || arg === "redo") {
+        const edit = history.apply(needChapter(state), arg);
+        if (!edit) {
+          ctx.toast(arg === "undo" ? "没有可撤销的操作" : "没有可重做的操作");
+          return;
+        }
+        $(".manuscript").textContent = needChapter(state).body;
+        $(".editor-heading").textContent = needChapter(state).name;
+        scheduleWordCount(needChapter(state).body);
+        updateHistoryTools();
+        if (document.activeElement?.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) {
+          locateText(edit.offset, 0, edit.field === 'body' ? '.manuscript' : '.editor-heading');
+        }
+        return;
+      }
+      if (arg === "format") {
+        await applyFormat(false);
+        return;
+      }
+      if (arg === "previous" || arg === "next") {
+        const next = state.chapter + (arg === "next" ? 1 : -1);
+        if (next < 0 || next >= needBook(state).chapters.length) {
+          ctx.toast(arg === "next" ? "已经是最后一章" : "已经是第一章");
+          return;
+        }
+        ctx.dispose();
+        state.chapter = next;
+        ctx.render();
+        return;
+      }
+    },
+    replace: applyReplace,
+    'replace-one': applyReplace,
+    async 'confirm-book-replace'() {
+      const changes = pendingReplace;
+      if (!changes?.length) return;
+      if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览替换');
+      for (const change of changes) commitBody(change.after, change.chapter);
+      rememberBookChange({ bookId: needBook(state).id, label: '全书替换', changes: changes.map(({ chapter, before, after }) => ({ chapterId: chapter.id, before, after })) });
+      pendingReplace = null;
+      ctx.closeSheet();
+      await saveNow(state);
+      ctx.toast('全书替换已保存');
+    },
+    export() {
+      ctx.txt.openExport(needBook(state), needChapter(state));
+    },
+    async 'apply-format'(arg) {
+      const changes = pendingFormat;
+      if (!changes?.length) return;
+      if (changes.some(change => change.chapter.body !== change.before)) throw new Error('正文已变化，请重新预览排版');
+      for (const change of changes) commitBody(change.after, change.chapter);
+      if (arg === 'book') rememberBookChange({ bookId: needBook(state).id, label: '全书排版', changes: changes.map(({ chapter, before, after }) => ({ chapterId: chapter.id, before, after })) });
+      pendingFormat = null;
+      ctx.closeSheet();
+      ctx.render();
+      await saveNow(state);
+    },
+  };
+
+  return {
+    actions,
+    render,
+    install,
+    editor: { commitBody, locateText },
+    reader: { session: () => readerSession },
+    resetHistory,
+    applyFormat,
+  };
+}

@@ -9,6 +9,18 @@ export const book = (state: AppState): Book | undefined =>
 export const chapter = (state: AppState): Chapter | undefined =>
   book(state)?.chapters[state.chapter];
 
+// 没有选中的书/章时抛错；调用它们的动作只会在选中书的页面上触发。
+export function needBook(state: AppState): Book {
+  const b = book(state);
+  if (!b) throw new Error('没有选中的书籍');
+  return b;
+}
+export function needChapter(state: AppState): Chapter {
+  const c = chapter(state);
+  if (!c) throw new Error('没有选中的章节');
+  return c;
+}
+
 // 章节列表变化后，修正当前编辑章与阅读进度指向的下标。
 export function updateChapters(state: AppState, next: Chapter[], b: Book): void {
   const current = b.chapters[state.chapter];
