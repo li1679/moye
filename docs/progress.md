@@ -42,7 +42,8 @@
 - [x] 2.1 基础模块（app/core/dom.ts、app/core/state.ts、app/kit/ui.ts 已建立；prototype.js 的 $/esc/icon/ib/toolMenu 与初始状态改为从这些模块导入；ib 的动作名特殊处理已删，阅读器顶栏直接传"本书搜索"。95 个用例通过）
 - [x] 2.2 动作表（action() 的 if 链改为 handlers 映射 + dispatch()：共 80 个 kind 与原分支一一对应，多 kind 共用分支按方案用同一函数注册多次；"切换页面前先 dispose"的判断移入 dispatch；match-hit 中原对完整动作字符串的比较改写为 'match-hit:' + arg（生成格式不变，等价）；prototype.js 1598→1602 行。typecheck 0 错、95 用例通过、build 通过）
 - [x] 2.3 核心模块（新建 core/toast.ts、core/context.ts、core/actions.ts、core/router.ts：toast 与 notice-action 搬进 toast.ts；ctx 提供 state/dispose/onDispose/action/render 等附录 L 接口；动作表经 registerActions 注册、createDispatcher 分派，共用动作函数第 4 参数按附录 L 从 kind 改为 raw（内部 split 取 kind，行为不变）；router.render() 在前后各取一次快照做动画（删掉原 wrap IIFE），并保留原 render 的调度（bookUndo 清理、dispose、prepare、按页分派）；renderEditor/renderLayout/renderChapters 的 5 处外部调用与 layoutSettings 改为 ctx.render()；disposeReadingEditing 拆为编辑/阅读分支各自 ctx.onDispose 登记的钩子。typecheck 0 错、95 用例通过、build 通过）
-- [ ] 2.4 书架与"我的"　- [ ] 2.5 章节页　- [ ] 2.6 编辑器　- [ ] 2.7 阅读器
+- [x] 2.4 书架与"我的"（新建 pages/shelf.ts、pages/me.ts：cover 模板搬进 kit/ui.ts；nav/folderItem/libraryItems/enableLibrarySort 与书架、"我的"渲染及 27 个动作搬进两个页面模块，经 registerActions 注册；librarySort 的销毁改为 ctx.onDispose 登记；表单/搜索函数经 ShelfHelpers 注入（2.9/2.10 搬走后由组装层提供）；tab/view 的赋值按 schema 字面量类型收窄（行为等价）；新建 app/types/sortablejs.d.ts 本地声明（不新增 @types 依赖）。动作总数与 2.3 提交一致（80 个），typecheck 0 错、95 用例通过、build 通过）
+- [ ] 2.5 章节页　- [ ] 2.6 编辑器　- [ ] 2.7 阅读器
 - [ ] 2.8 页面布局　- [ ] 2.9 搜索　- [ ] 2.10 表单与原生监听
 - [ ] 2.11 组装入口，删除 prototype.js　- [ ] 2.12 清理　- [ ] 2.13 本批收尾
 
