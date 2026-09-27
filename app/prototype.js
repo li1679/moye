@@ -24,6 +24,10 @@ import { createSettings } from './ui/settings';
 import { createInitialState } from './core/state';
 import { icon, ib, toolMenu } from './kit/ui';
 import { $, esc } from './core/dom';
+import { toast, runNoticeAction } from './core/toast';
+import { createCtx } from './core/context';
+import { registerActions, createDispatcher } from './core/actions';
+import { createRouter } from './core/router';
 
 /* UI state hydrated from the platform's local database before first render. */
 const state = await persistState(createInitialState());
@@ -46,7 +50,7 @@ const app = $("#app"),
   sheet = $("#sheet");
 const book = () => state.books.find((b) => b.id === state.book);
 const txtFlows = createTxtFlows({ state, openSheet, closeSheet, render: () => render(), toast });
-const backupFlows = createBackupFlows({ state, openSheet, prepare: () => disposeReadingEditing() });
+const backupFlows = createBackupFlows({ state, openSheet, prepare: () => ctx.dispose() });
 const chapter = () => book()?.chapters[state.chapter];
 const history = new ChapterHistory();
 let historyChapterId = null;
@@ -73,37 +77,7 @@ function scheduleWordCount(value) {
     });
   }, 200);
 }
-function disposeReadingEditing() {
-  pendingInput = null;
-  clearTimeout(wordCountTimer);
-  wordCountRevision++;
-  wordCountClient?.dispose();
-  wordCountClient = null;
-  readerSession?.destroy();
-  readerSession = null;
-  disposeEditor?.();
-  disposeEditor = null;
-}
-let toastTimer, returnFocus;
-let toastAction = null;
-function toast(message, action) {
-  clearTimeout(toastTimer);
-  const notice = $("#notice");
-  toastAction = action?.run ?? null;
-  notice.replaceChildren(document.createTextNode(message));
-  if (action) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'notice-action';
-    button.dataset.action = 'notice-action';
-    button.textContent = action.label;
-    notice.append(button);
-  }
-  notice.classList.toggle('with-action', !!action);
-  notice.classList.add('visible');
-  const duration = action ? 5000 : Math.min(8000, Math.max(2600, message.length * 120));
-  toastTimer = setTimeout(() => { notice.classList.remove('visible', 'with-action'); toastAction = null; }, duration);
-}
+let returnFocus;
 const panels = createSheets(sheet, { escape: esc, button: ib, icons, restored() {
   const gridStatus = $('[data-action="grid"] .row-value', sheet);
   if (gridStatus) gridStatus.textContent = state.prefs.grid ? '已开启' : '已关闭';
@@ -112,6 +86,17 @@ const panels = createSheets(sheet, { escape: esc, button: ib, icons, restored() 
 function openSheet(title, body, options = {}) { panels.open(title, body, options); }
 function closeSheet() { panels.close(); }
 function backSheet() { panels.back(); }
+const ctx = createCtx({
+  state, app, sheet,
+  openSheet, closeSheet, backSheet,
+  toast,
+  book, chapter,
+  editor: { commitBody, locateText },
+  reader: { session: () => readerSession },
+  txt: txtFlows,
+  backup: backupFlows,
+  settings,
+});
 // Import/restore register their cancellation guards before this listener.
 sheet.addEventListener('cancel', event => {
   if (event.defaultPrevented) return;
@@ -173,24 +158,14 @@ function enableLibrarySort() {
     },
   });
 }
-function render() {
-  const pending = currentBookUndo();
-  if (pending && (state.page === 'home' || pending.bookId !== state.book)) clearBookUndo();
-  disposeReadingEditing();
-  if (state.page !== 'editor') resetHistory();
+function prepareRender() {
+  if (state.page !== "editor") resetHistory();
   chapterSort?.destroy();
   chapterSort = null;
   librarySort?.destroy();
   librarySort = null;
-  if (state.page === "editor" || state.page === "reader") {
-    renderEditor();
-    return;
-  }
-  document.documentElement.style.removeProperty("--paper");
-  if (state.page === "chapters") {
-    renderChapters();
-    return;
-  }
+}
+function renderHome() {
   if (state.tab === "me") {
     app.innerHTML = `<main class="app-shell home"><header class="topbar"><h1>我的</h1></header><section class="page-body profile"><div class="profile-intro"><div class="avatar"><img src="/brand/moye.svg" alt="" width="48" height="48"></div><div><h2>墨页</h2><p class="muted">本地阅读，随心改文</p></div></div><button class="row" data-action="cache"><span class="row-label">${icon("eraser")}清理缓存</span>${icon("chevron-right")}</button><button class="row" data-action="about"><span class="row-label">${icon("info")}关于</span>${icon("chevron-right")}</button></section>${nav()}</main>`;
     icons();
@@ -202,6 +177,14 @@ function render() {
   icons();
   enableLibrarySort();
 }
+const router = createRouter(ctx, {
+  editor: renderEditor,
+  chapters: renderChapters,
+  home: renderHome,
+  prepare: prepareRender,
+});
+ctx.render = router.render;
+const render = () => ctx.render();
 function renderChapters() {
   const b = book();
   const managing = state.chapterBatch;
@@ -320,7 +303,7 @@ function applyAppearance() {
   if (editingAnchor) restoreAnchor(oldBody, scroll, editingAnchor);
 }
 function renderEditor() {
-  disposeReadingEditing();
+  ctx.dispose();
   if (state.layout) {
     renderLayout();
     return;
@@ -373,6 +356,14 @@ function renderEditor() {
       document.removeEventListener('selectionchange', schedule);
       document.removeEventListener('visibilitychange', capture);
     };
+    ctx.onDispose(() => {
+      pendingInput = null;
+      clearTimeout(wordCountTimer);
+      wordCountRevision++;
+      wordCountClient?.dispose();
+      wordCountClient = null;
+    });
+    ctx.onDispose(() => { disposeEditor?.(); disposeEditor = null; });
   } else {
     b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
     readerSession = mountReader(scroll, b.chapters, state.chapter, state.reading[b.id], (position, progress) => {
@@ -384,6 +375,7 @@ function renderEditor() {
       $('[data-action="reader-step:-1"]').disabled = position.chapter === 0;
       $('[data-action="reader-step:1"]').disabled = position.chapter === b.chapters.length - 1;
     }, toast);
+    ctx.onDispose(() => { readerSession?.destroy(); readerSession = null; });
     applyAppearance();
   }
 }
@@ -391,7 +383,7 @@ function layoutSettings() {
   state.layoutScroll = $(".editor-scroll")?.scrollTop || 0;
   state.layout = true;
   closeSheet();
-  renderLayout();
+  ctx.render();
 }
 function layoutToolbar(where) {
   return `<div class="layout-slots" aria-label="${where === "top" ? "上方" : "下方"}工具栏">${state.toolbars[where].map((id, index) => `<div class="layout-slot">${ib(id ? tools[id][0] : "circle-plus", id ? `更换${tools[id][1]}` : `添加${where === "top" ? "上方" : "下方"}第${index + 1}个工具`, `slot:${where}:${index}`)}${id ? `<button class="slot-remove" aria-label="移除${tools[id][1]}" title="移除${tools[id][1]}" data-action="remove-tool:${where}:${index}">${icon("circle-minus")}</button>` : ""}</div>`).join("")}${ib("plus", "增加工具位置", `add-slot:${where}`)}</div>`;
@@ -604,10 +596,12 @@ function openChapter(arg) {
   closeSheet();
   render();
 }
-function openBookForm(_arg, _arg2, _arg3, kind) {
+function openBookForm(_arg, _arg2, _arg3, raw) {
+  const kind = raw.split(':')[0];
   bookForm(kind === "edit-book");
 }
-function chapterSelection(_arg, _arg2, _arg3, kind) {
+function chapterSelection(_arg, _arg2, _arg3, raw) {
+  const kind = raw.split(':')[0];
   const chapters = book().chapters;
   const all = chapters.every(c => state.selectedChapters.has(c));
   if (kind === "invert-chapters") {
@@ -617,7 +611,8 @@ function chapterSelection(_arg, _arg2, _arg3, kind) {
   }
   updateChapterSelection();
 }
-function openSearch(_arg, _arg2, _arg3, kind) {
+function openSearch(_arg, _arg2, _arg3, raw) {
+  const kind = raw.split(':')[0];
   search(
     kind === "global-search"
       ? "global"
@@ -626,7 +621,8 @@ function openSearch(_arg, _arg2, _arg3, kind) {
         : "book",
   );
 }
-async function applyReplace(_arg, _arg2, _arg3, kind) {
+async function applyReplace(_arg, _arg2, _arg3, raw) {
+  const kind = raw.split(':')[0];
   const q = $("#query").value;
   if (!q) {
     toast("先输入查找文本");
@@ -656,7 +652,8 @@ async function applyReplace(_arg, _arg2, _arg3, kind) {
   await saveNow(state);
   toast(kind === 'replace-one' ? '已替换这一处，可撤销' : '已替换本章全部匹配，可撤销');
 }
-function exportText(_arg, _arg2, _arg3, kind) {
+function exportText(_arg, _arg2, _arg3, raw) {
+  const kind = raw.split(':')[0];
   txtFlows.openExport(book(), kind === "export-book" ? undefined : chapter());
 }
 const handlers = {
@@ -664,12 +661,7 @@ const handlers = {
     closeSheet();
   },
   'notice-action'() {
-    const run = toastAction;
-    clearTimeout(toastTimer);
-    const notice = $('#notice');
-    notice.classList.remove('visible', 'with-action');
-    toastAction = null;
-    run?.();
+    runNoticeAction();
   },
   'sheet-back'() {
     sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
@@ -1049,12 +1041,12 @@ const handlers = {
       bottom: ["keyboard", "find", "top", "bottom", null, null],
     };
     closeSheet();
-    renderLayout();
+    ctx.render();
   },
   'finish-layout'() {
     state.layout = false;
     closeSheet();
-    renderEditor();
+    ctx.render();
     $(".editor-scroll").scrollTop = state.layoutScroll;
   },
   slot(arg, arg2) {
@@ -1062,11 +1054,11 @@ const handlers = {
   },
   'remove-tool'(arg, arg2) {
     state.toolbars[arg][Number(arg2)] = null;
-    renderLayout();
+    ctx.render();
   },
   'add-slot'(arg) {
     state.toolbars[arg].push(null);
-    renderLayout();
+    ctx.render();
     slotPicker(arg, state.toolbars[arg].length - 1);
   },
   'choose-tool'(arg) {
@@ -1077,7 +1069,7 @@ const handlers = {
       );
     state.toolbars[where][index] = arg;
     closeSheet();
-    renderLayout();
+    ctx.render();
   },
   pref(arg, arg2) {
     let value = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
@@ -1182,7 +1174,7 @@ const handlers = {
         toast(arg === "next" ? "已经是最后一章" : "已经是第一章");
         return;
       }
-      disposeReadingEditing();
+      ctx.dispose();
       state.chapter = next;
       render();
       return;
@@ -1281,14 +1273,9 @@ const handlers = {
     );
   },
 };
-async function dispatch(a) {
-  const [kind, arg, arg2, arg3] = a.split(":");
-  if (['tab', 'home', 'book', 'chapters', 'chapter', 'jump-chapter', 'match-hit'].includes(kind) && !(kind === 'match-hit' && $('#replacement'))) {
-    disposeReadingEditing();
-  }
-  const handler = Object.prototype.hasOwnProperty.call(handlers, kind) ? handlers[kind] : null;
-  if (handler) await handler(arg, arg2, arg3, kind);
-}
+registerActions({ actions: handlers });
+const dispatch = createDispatcher(ctx);
+ctx.action = dispatch;
 let readingPointer = null;
 document.addEventListener('pointerdown', event => {
   readingPointer = event.target.closest('[data-reader]') ? { x: event.clientX, y: event.clientY, time: performance.now(), scroll: $('.editor-scroll').scrollTop } : null;
@@ -1486,70 +1473,6 @@ document.addEventListener("keydown", (e) => {
   list.scrollTop = scroll;
   handle.focus({ preventScroll: true });
 });
-/* 页面切换动画：只做视觉过渡，不读写任何业务状态 */
-(() => {
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-  const pageKey = () =>
-    state.page === "home"
-      ? `home:${state.tab}:${state.folder}`
-      : state.page === "chapters"
-        ? `chapters:${state.book}`
-        : `${state.page}:${state.book}:${state.chapter}:${state.layout ? 1 : 0}`;
-  const depth = () =>
-    state.page === "home"
-      ? state.folder === null ? 0 : 1
-      : state.page === "chapters"
-        ? 2
-        : state.layout ? 4 : 3;
-  const snapshot = () => ({
-    key: pageKey(),
-    list: `${state.view}:${state.batch}:${state.chapterBatch}`,
-    depth: depth(),
-    tab: state.tab,
-    book: state.book,
-    chapter: state.chapter,
-  });
-  let last = null, nesting = 0;
-  function animate(a, b, old) {
-    const shell = app.firstElementChild;
-    if (!shell || shell === old) return;
-    if (a.key === b.key) {
-      if (a.list !== b.list) $(".books")?.classList.add("items-in");
-      if (a.list !== b.list && !$('.books')) {
-        shell.classList.add('page-in', 'page-fade');
-        setTimeout(() => shell.classList.remove('page-in', 'page-fade'), 350);
-      }
-      return;
-    }
-    let dir = "fade";
-    if (b.depth !== a.depth) dir = b.depth > a.depth ? "forward" : "back";
-    else if (a.book === b.book && a.tab === b.tab && a.chapter !== b.chapter)
-      dir = b.chapter > a.chapter ? "forward" : "back";
-    shell.classList.add("page-in", "page-" + dir);
-    setTimeout(() => shell.classList.remove("page-in", "page-" + dir), 500);
-  }
-  const wrap = (fn) =>
-    function (...args) {
-      if (nesting || reduce.matches) {
-        if (!nesting) last = null;
-        return fn.apply(this, args);
-      }
-      const before = last;
-      const old = app.firstElementChild;
-      nesting++;
-      try {
-        return fn.apply(this, args);
-      } finally {
-        nesting--;
-        last = snapshot();
-        if (before) animate(before, last, old);
-      }
-    };
-  render = wrap(render);
-  renderEditor = wrap(renderEditor);
-  renderLayout = wrap(renderLayout);
-  renderChapters = wrap(renderChapters);
-})();
 
 if (Capacitor.isNativePlatform()) {
   await App.addListener('backButton', async () => {
