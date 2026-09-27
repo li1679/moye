@@ -1,0 +1,17 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+Temp/
+releases/
+*.log
+*.apk
+*.aab
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+keystore.properties
+signing.properties
+.DS_Store
