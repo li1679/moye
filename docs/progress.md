@@ -16,19 +16,27 @@
 - [x] 0.6 大书库测试（tests/fixtures/big-library.ts + tests/scale.spec.ts；基线已记入上表，本批不设上限）
 - [x] 0.7 本批收尾（未推送：无 gh 与远端权限，按方案 0.2.3 在本地合并到 main）
 
-## 第 1 批
-- [ ] 1.1 删除恢复记录
-- [ ] 1.2 数据定义收进 schema.ts
-- [ ] 1.3 分批读取本地数据库
-- [ ] 1.4 自动保存改用 schema，只写有变化的行
-- [ ] 1.5 刷新后回到原处，以及测试辅助函数
-- [ ] 1.6 删除和全书操作的短时撤销
-- [ ] 1.7 字数
-- [ ] 1.8 封面压缩
-- [ ] 1.9 渲染不再写数据
-- [ ] 1.10 读库提示和原始数据导出
-- [ ] 1.11 清理设置里的无效项
-- [ ] 1.12 本批收尾
+## 第 1 批（已完成：95 个用例全部通过，typecheck 0 错误，npm run build 通过）
+- [x] 1.1 删除恢复记录（backup 目录与 backup.spec.ts 已就位；grep 残留仅为"兼容版本 1 旧备份"的 decodeBackup 代码与对应测试）
+- [x] 1.2 数据定义收进 schema.ts（tests/schema.spec.ts 5 个纯函数用例；validateLibrary/snapshotLibrary 从 backup/model.ts 搬入）
+- [x] 1.3 分批读取本地数据库（tests/storage.spec.ts 3 个用例；openStorage 只打开一次并对齐原生连接表）
+- [x] 1.4 自动保存改用 schema，只写有变化的行（跟踪表替代整库 JSON 副本；moye:save-state 事件已派发）
+- [x] 1.5 刷新后回到原处（tests/seed.ts 的 toShelf；tests/session.spec.ts 4 个用例；第 12 节列出的 toShelf 改动全部完成）
+- [x] 1.6 删除和全书操作的短时撤销（history.clear()、book-undo.ts、toast(message, action)、tests/undo.spec.ts 5 个用例）
+- [x] 1.7 字数（countWords/wordsOf/bookWords；worker 与兜底同步；tests/words.spec.ts）
+- [x] 1.8 封面压缩（features/covers.ts；选图压缩 + 空闲压缩大封面；tests/covers.spec.ts）
+- [x] 1.9 渲染不再写数据（libraryItems 只读；新建书/分组/导入/移动 4 处用 nextLibraryOrder；不再写 tone）
+- [x] 1.10 读库提示和原始数据导出（.boot 提示 + 错误页"导出原始数据"按钮；已用 schema='9' 手动验证错误页与导出文件）
+- [x] 1.11 清理设置里的无效项（settings.ts 类型改用 schema 的 Prefs/ReadPrefs；FormatOptions 去掉 punctuation。grep 残留：schema.ts 迁移代码中删除旧键的两行（附录 E 要求保留）、迁移测试数据、editor 测试名与 persistence 正文中的英文单词，均非设置项本身）
+- [x] 1.12 本批收尾（性能对比见下；未推送，本地合并到 main）
+
+### 第 1 批性能（大书库 1500 章，含版本 1→2 迁移）
+- 书架可见：367 → 541 ms（含一次性迁移写入）
+- 章节列表（1500 行）：208 → 246 ms
+- 打开阅读器：548 → 633 ms
+- 打开目录：431 → 510 ms
+- 目录跳到第 1001 章：944 → 1152 ms
+（scale 用例每次都以版本 1 数据冷启动，包含迁移写库开销；窗口化阅读在第 5 批解决大目录跳章）
 
 ## 第 2 批
 - [ ] 2.1 基础模块　- [ ] 2.2 动作表　- [ ] 2.3 核心模块
