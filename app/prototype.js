@@ -19,6 +19,7 @@ import { App } from '@capacitor/app';
 import { createBackupFlows } from './features/backup/flows';
 import { SearchClient } from './features/editor/search-client';
 import { rememberBookChange, currentBookUndo, pendingBookUndo, takeBookUndo, clearBookUndo } from './features/editor/book-undo';
+import { compressCover } from './features/covers';
 import { createSettings } from './ui/settings';
 
 /* UI state hydrated from the platform's local database before first render. */
@@ -1479,7 +1480,7 @@ document.addEventListener("input", (e) => {
     readerSession?.jump(state.chapter, Number(el.value));
   }
 });
-document.addEventListener("change", (e) => {
+document.addEventListener("change", async (e) => {
   const el = e.target;
   if (el.dataset.pref) {
     state.prefs[el.dataset.pref] = el.checked;
@@ -1495,14 +1496,17 @@ document.addEventListener("change", (e) => {
       toast("请选择图片文件");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      formImage = reader.result;
+    const submit = $('#book-form button[type="submit"]');
+    submit.disabled = true;   // 压缩期间提交按钮是禁用的
+    try {
+      formImage = await compressCover(f);
       $(".cover-picker .cover").classList.add("has-image");
-      $(".cover-picker .cover").innerHTML =
-        `<img src="${formImage}" alt="封面预览">`;
-    };
-    reader.readAsDataURL(f);
+      $(".cover-picker .cover").innerHTML = `<img src="${formImage}" alt="封面预览">`;
+    } catch {
+      toast("无法读取这张图片，请换一张");
+    } finally {
+      submit.disabled = false;
+    }
   }
 });
 document.addEventListener("submit", (e) => {
@@ -1657,3 +1661,21 @@ if (Capacitor.isNativePlatform()) {
 }
 
 render();
+// 首屏之后：已有的大封面在空闲时逐本自动压缩（D-13），结果更短才替换。
+const compressIdleCovers = () => {
+  const queue = state.books.filter((b) => (b.image?.length ?? 0) > 300_000).slice();
+  const step = () => {
+    const b = queue.shift();
+    if (!b) return;
+    void (async () => {
+      try {
+        const compressed = await compressCover(await (await fetch(b.image)).blob());
+        if (compressed.length < b.image.length) b.image = compressed;
+      } catch { /* 无法读取的封面保持原样 */ }
+      step();
+    })();
+  };
+  step();
+};
+if (typeof requestIdleCallback === "function") requestIdleCallback(compressIdleCovers);
+else setTimeout(compressIdleCovers, 1500);

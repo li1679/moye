@@ -1,0 +1,45 @@
+import { test, expect } from './seed';
+
+test('选图后压缩成不超过 480×640 的 JPEG', async ({ page }) => {
+  await page.goto('/');
+  // 在页面里用 canvas 生成一张 2000×3000 的 PNG
+  const dataUrl = await page.evaluate(() => new Promise<string>(resolve => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2000; canvas.height = 3000;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#4682b4'; context.fillRect(0, 0, 2000, 3000);
+    context.fillStyle = '#eeeeee'; context.fillRect(100, 100, 1800, 2800);
+    context.fillStyle = '#333333'; for (let i = 0; i < 40; i++) context.fillRect(150, 150 + i * 70, 1700, 40);
+    canvas.toBlob(blob => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob!);
+    }, 'image/png');
+  }));
+  // 新建书籍时通过 #cover-file 上传
+  await page.locator('[data-action="new-book"]').click();
+  await page.locator('#cover-file').setInputFiles({ name: '大封面.png', mimeType: 'image/png', buffer: Buffer.from(dataUrl.split(',')[1], 'base64') });
+  await expect(page.locator('.cover-picker img')).toBeVisible();
+  await page.locator('#book-name').fill('带封面的书');
+  await page.locator('#book-form button[type="submit"]').click();
+  await expect(page.locator('.save-status')).toHaveText('已保存');
+  // 保存后读 IndexedDB 的 cover:<id>：内容是 JPEG，且小于 200 000 字符
+  const covers = await page.evaluate(() => new Promise<string[]>(resolve => {
+    const result: string[] = [];
+    const req = indexedDB.open('local-editing-preview');
+    req.onsuccess = () => {
+      const db = req.result;
+      const cursor = db.transaction('records').objectStore('records').openCursor();
+      cursor.onsuccess = () => {
+        if (cursor.result) {
+          const key = cursor.result.key as string;
+          if (key.startsWith('cover:')) result.push((cursor.result.value as { value: string }).value);
+          cursor.result.continue();
+        } else { db.close(); resolve(result); }
+      };
+    };
+  }));
+  expect(covers).toHaveLength(1);
+  expect(covers[0].startsWith('"data:image/jpeg')).toBe(true);
+  expect(covers[0].length).toBeLessThan(200_000);
+});
