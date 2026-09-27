@@ -1,6 +1,7 @@
 import type { SheetOptions } from './sheets';
-export type EditorPreferences = { font: number; line: number; bold: boolean; indent: boolean; spaces: boolean; paragraph: string | number; margin: number; bottom: number; grid: boolean; near: boolean; thick: boolean; lineType: string; lineColor: string; color: string; paper: string; fontFamily: string; autoScroll: boolean };
-export type ReaderPreferences = { font: number; line: number; margin?: number; bottom?: number; paper: string; color: string; brightness: number };
+import type { Prefs, ReadPrefs } from '../data/schema';
+export type EditorPreferences = Prefs;
+export type ReaderPreferences = ReadPrefs;
 type Context = { state: { prefs: EditorPreferences; readPrefs: ReaderPreferences; settingTab: string }; openSheet: (title: string, body: string, options?: SheetOptions) => void; icon: (name: string) => string };
 const inkColors = ['#292d30','#85a8c1','#509499','#6faab4','#527db3','#7c6854','#527b80','#6979ad','#b55353','#8bb98a','#554f43','#aa537c','#64727d','#c2a773'];
 const paperColors = ['#ffffff','#f4f5f5','#eff7f7','#dce8f4','#f2e6d4','#dcead8','#e8dfd0','#e7e4f2','#f5e9ed','#e4f3ee','#f2dfe1','#d9e9eb'];
@@ -14,7 +15,7 @@ export function createSettings({ state, openSheet, icon }: Context) {
     state.settingTab = tab; const p = state.prefs; let body = '';
     if (tab === '基础') body = `<button class="row" data-action="layout"><span>页面布局</span>${icon('chevron-right')}</button><button class="row" data-action="grid"><span>网格线</span><span class="row-value">${p.grid ? '已开启' : '已关闭'}</span>${icon('chevron-right')}</button><button class="row" data-action="chapter-search"><span>本章搜索</span>${icon('chevron-right')}</button><button class="row" data-action="export"><span>导出文档</span><span class="row-value">TXT</span>${icon('chevron-right')}</button>`;
     if (tab === '字体') body = switchRow('字体加粗','bold') + `<label class="row"><span>字体设置</span><select id="font-family"><option ${p.fontFamily === '系统默认' ? 'selected' : ''}>系统默认</option><option ${p.fontFamily === '宋体' ? 'selected' : ''}>宋体</option></select></label>` + steps('字体大小','font',[14,16,18,20,22,24,26,28],p.font) + steps('行间距','line',[1.4,1.5,1.6,1.7,1.8,1.9,2,2.2],p.line);
-    if (tab === '排版') body = switchRow('段落缩进','indent') + switchRow('去除多余空格','spaces') + switchRow('正文自动滚动','autoScroll') + steps('段落间隔行数','paragraph',['不限',0,1,2,3],p.paragraph) + steps('左右边距','margin',[16,20,24,28,32],p.margin) + steps('正文底部间距','bottom',[24,40,80,120,160],p.bottom);
+    if (tab === '排版') body = switchRow('段落缩进','indent') + switchRow('去除多余空格','spaces') + steps('段落间隔行数','paragraph',['不限',0,1,2,3],p.paragraph) + steps('左右边距','margin',[16,20,24,28,32],p.margin) + steps('正文底部间距','bottom',[24,40,80,120,160],p.bottom);
     if (tab === '主题') body = swatches('字体颜色','color',inkColors,p.color) + swatches('纯色背景','paper',paperColors,p.paper) + '<div class="setting-label">默认背景</div><div class="backgrounds"><button style="background:#fff;color:#333" data-action="theme-light:#ffffff">白纸</button><button style="background:#e4f3ee;color:#35554a" data-action="theme-light:#e4f3ee">浅绿</button><button style="background:#232527;color:#ddd" data-action="theme-dark">夜间</button></div>';
     openSheet('', body, { className: 'settings-sheet', label: '界面设置', header: `<div class="sheet-tabs" role="tablist" aria-label="设置分类">${tabs.map(value => `<button role="tab" aria-selected="${value === tab}" class="${value === tab ? 'active' : ''}" data-action="settings:${value}">${value}</button>`).join('')}</div>` });
   }

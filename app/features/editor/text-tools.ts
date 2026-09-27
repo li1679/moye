@@ -1,4 +1,4 @@
-export type FormatOptions = { indent: boolean; spaces: boolean; punctuation?: boolean; paragraph: string | number };
+export type FormatOptions = { indent: boolean; spaces: boolean; paragraph: string | number };
 
 export function formatText(body: string, options: FormatOptions): string {
   const newline = body.match(/\r\n|\n|\r/)?.[0] || '\n';
@@ -11,7 +11,6 @@ export function formatText(body: string, options: FormatOptions): string {
     if (!line.trim()) return '';
     if (options.spaces) line = line.replace(/^[\t \u3000]+|[\t \u3000]+$/g, '');
     if (options.indent) line = '\u3000\u3000' + line.replace(/^[\t \u3000]+/, '');
-    // Kept for settings compatibility; English periods are never rewritten.
     return line;
   });
   if (options.paragraph !== '不限') {

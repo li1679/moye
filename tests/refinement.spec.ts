@@ -23,10 +23,6 @@ test('search pages reuse bounded checkpoints and invalidate changed documents', 
   expect(index.search('目标').total).toBe(0);
 });
 
-test('legacy punctuation preference no longer transforms source punctuation', () => {
-  expect(formatText('英文......仍保留.........', { indent: false, spaces: false, paragraph: '不限', punctuation: true })).toBe('英文......仍保留.........');
-});
-
 test('grid line and color updates retain live panel nodes, scroll and persisted value', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();
@@ -44,7 +40,6 @@ test('grid line and color updates retain live panel nodes, scroll and persisted 
   await page.locator('[data-action="sheet-back"]').click();
   await expect(page.locator('#sheet')).toHaveAttribute('aria-label', '界面设置');
   await page.locator('[data-action="settings:排版"]').click();
-  await expect(page.locator('[data-pref="punctuation"]')).toHaveCount(0);
   await page.locator('[data-action="close"]').click();
   await page.waitForTimeout(500);
   await page.reload();

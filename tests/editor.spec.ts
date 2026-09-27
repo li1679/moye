@@ -13,11 +13,10 @@ const editor = (page: Page) => page.getByRole('textbox', { name: '章节正文',
 
 test('format is idempotent and preserves internal spaces and punctuation when disabled', () => {
   const input = '\r\n  hello world  \r\n\r\n\r\n　　中文......\r\n ';
-  const options = { indent: true, spaces: true, punctuation: false, paragraph: 1 };
+  const options = { indent: true, spaces: true, paragraph: 1 };
   const output = formatText(input, options);
   expect(output).toBe('　　hello world\r\n\r\n　　中文......');
   expect(formatText(output, options)).toBe(output);
-  expect(formatText('......', { ...options, punctuation: true })).toBe('　　......');
   expect(formatText('  \n\n', options)).toBe('');
 });
 
