@@ -47,4 +47,17 @@ export const test = base.extend({ page: async ({ page }, use) => {
  }, seed);
  await use(page);
  }});
+
+import type { Page } from '@playwright/test';
+
+/** 刷新后应用会回到上次的页面（C-11）。这个函数用应用自己的返回动作走回书架，再切到指定的标签页。 */
+export async function toShelf(page: Page, tab: 'edit' | 'read' | 'me' = 'edit') {
+  await page.locator('main.app-shell').first().waitFor();
+  for (let step = 0; step < 4 && !(await page.locator('.bottom-nav').count()); step++) {
+    const back = page.locator('main [data-action="chapters"], main [data-action="home"], main [data-action="folder:root"]').first();
+    await back.dispatchEvent('click');   // 阅读器的返回按钮在隐藏的控制栏里，所以用 dispatchEvent
+  }
+  await expect(page.locator('.bottom-nav')).toBeVisible();
+  await page.locator(`[data-action="tab:${tab}"]`).click();
+}
 export { expect };

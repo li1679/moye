@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { toShelf } from './seed';
 
 test('new install is empty, saved status fades and cache leaves book intact', async ({ page }) => {
   await page.goto('/');
@@ -17,5 +18,6 @@ test('new install is empty, saved status fades and cache leaves book intact', as
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await expect(page.locator('.save-status')).toBeHidden({ timeout: 4000 });
   await page.reload();
+  await toShelf(page);
   await expect(page.locator('.book')).toContainText('个人作品');
 });

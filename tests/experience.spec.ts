@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 import type { Page } from '@playwright/test';
 const body = (prefix: string) => Array.from({ length: 160 }, (_, i) => prefix + '第' + i + '行，这是一段用来验证位置的正文。').join('\n');
 async function prepare(page: Page) {
@@ -36,7 +37,7 @@ test('continuous scroll changes active chapter, restores by text and keeps posit
     return row && JSON.parse(row.value)['1']?.anchor?.context;
   })).toContain('乙');
   await page.reload();
-  await reading(page);
+  await expect(page.locator('.reader')).toBeVisible();
   await expect(page.locator('.reader-footer span').first()).toHaveText('第2章  旧书店');
   const before = await page.locator('.editor-scroll').evaluate(el => el.scrollTop);
   await controls(page);
@@ -64,6 +65,7 @@ test('editor selection and scroll restore after chapter switch and reload', asyn
   await page.getByRole('button', { name: '返回目录', exact: true }).click();
   await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await page.locator('[data-action="chapter:0"]').click();
   await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe(body('甲').slice(900, 910));

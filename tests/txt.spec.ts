@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 import { readFile } from 'node:fs/promises';
 import { decodeText, parseText, exportText, txtFilename } from '../app/features/txt/text';
 
@@ -26,6 +27,7 @@ test('imported spaced headings appear only in chapter title, including after rel
   await page.locator('#txt-confirm').click();
   await expect(page.locator('.chapter-page')).toBeVisible();
   await page.reload();
+  await toShelf(page);
   await page.locator('.book').filter({ hasText: '空格章节' }).click();
   await page.locator('[data-action="chapter:0"]').click();
   await expect(page.getByRole('textbox', { name: '章节标题', exact: true })).toHaveText('第 1 章');
@@ -79,6 +81,7 @@ test('import confirms persisted book, reloads and exports unchanged bytes', asyn
   await expect(page.locator('.chapter-page')).toBeVisible();
   await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
+  await toShelf(page);
   await page.locator('.book').filter({ hasText: '测试小说' }).click();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
   await page.locator('[data-action="export-book"]').click();
@@ -111,6 +114,7 @@ test('import fails atomically and can retry without creating duplicates', async 
   await page.locator('#txt-confirm').click();
   await expect(page.locator('.chapter-page')).toBeVisible();
   await page.reload();
+  await toShelf(page);
   await expect(page.locator('.book').filter({ hasText: '重试测试' })).toHaveCount(1);
 });
 
@@ -125,6 +129,7 @@ test('five MB import persists and exports complete text after reload', async ({ 
   await page.locator('#txt-confirm').click();
   await expect(page.locator('.chapter-page')).toBeVisible();
   await page.reload();
+  await toShelf(page);
   await page.locator('.book').filter({ hasText: '五兆整章' }).click();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
   await page.locator('[data-action="export-book"]').click();
@@ -147,6 +152,7 @@ test('duplicate file requires explicit choice and import can open reading direct
   await expect(page.locator('.reader')).toBeVisible();
   await expect(page.locator('.manuscript')).not.toHaveAttribute('contenteditable');
   await page.reload();
+  await toShelf(page);
   await selectFile();
   await page.locator('#txt-confirm').click();
   await expect(page.locator('#txt-error')).toContainText('此文件已经导入');
@@ -154,5 +160,6 @@ test('duplicate file requires explicit choice and import can open reading direct
   await page.locator('#txt-confirm').click();
   await expect(page.locator('.chapter-page')).toBeVisible();
   await page.reload();
+  await toShelf(page);
   await expect(page.locator('.book').filter({ hasText: '重复检测' })).toHaveCount(2);
 });

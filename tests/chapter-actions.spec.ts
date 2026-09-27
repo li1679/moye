@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 
 test('dragging a scrolled chapter list retains viewport and persists order', async ({ page }) => {
   await page.goto('/');
@@ -26,6 +27,7 @@ test('dragging a scrolled chapter list retains viewport and persists order', asy
   await page.getByRole('button', { name: '完成', exact: true }).click();
   await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
+  await toShelf(page);
   await page.locator('.book').filter({ hasText: '拖动测试' }).click();
   await expect(page.locator('[data-action="chapter:13"] strong')).toHaveText(oldTitle);
 });
@@ -53,6 +55,7 @@ test('chapter swipe reveals deletion, cancel preserves and confirm deletes', asy
   await page.locator('[data-action^="confirm-single-chapter:"]').click();
   await expect(page.locator('.chapter-swipe')).toHaveCount(2);
   await page.reload();
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await expect(page.locator('.chapter-swipe')).toHaveCount(2);
 });

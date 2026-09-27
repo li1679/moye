@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 import type { Page } from '@playwright/test';
 
 async function openChapter(page: Page) {
@@ -16,6 +17,7 @@ test('chapter text, title and added chapter survive reload', async ({ page }) =>
   await page.getByRole('textbox', { name: '章节正文', exact: true }).fill('第一行\n\n中文、空格 and punctuation。');
   await saved(page);
   await page.reload();
+  await toShelf(page);
   await openChapter(page);
   await expect(page.getByRole('textbox', { name: '章节标题', exact: true })).toHaveText('持久化标题');
   await expect(page.getByRole('textbox', { name: '章节正文', exact: true })).toContainText('中文、空格 and punctuation。');
@@ -23,6 +25,7 @@ test('chapter text, title and added chapter survive reload', async ({ page }) =>
   await page.getByRole('button', { name: '新建章节', exact: true }).last().click();
   await saved(page);
   await page.reload();
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await expect(page.locator('[data-action^="chapter:"]')).toHaveCount(4);
 });
@@ -48,6 +51,7 @@ test('failed save leaves text intact and retry persists it', async ({ page }) =>
   await page.locator('.save-status').click();
   await saved(page);
   await page.reload();
+  await toShelf(page);
   await openChapter(page);
   await expect(body).toHaveText('保存失败后保留的正文');
 });
@@ -76,6 +80,7 @@ test('chapter selection survives reorder and deletion stays deleted', async ({ p
   await page.locator('[data-action="confirm-chapters"]').click();
   await saved(page);
   await page.reload();
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await expect(page.locator('[data-action^="chapter:"]')).toHaveCount(2);
   await expect(page.locator('[data-action="chapter:0"]')).toContainText('旧书店');
@@ -90,6 +95,7 @@ test('continuous typing persists during input and latest edit survives navigatio
   await page.getByRole('button', { name: '返回目录', exact: true }).click();
   await saved(page);
   await page.reload();
+  await toShelf(page);
   await openChapter(page);
   await expect(body).toHaveText('abcdefghij');
 });
@@ -104,6 +110,7 @@ test('new folder and shared library display preference survive reload', async ({
   await page.locator('[data-action="view:list"]').click();
   await saved(page);
   await page.reload();
+  await toShelf(page);
   await expect(page.locator('.books')).toHaveClass(/list/);
   await expect(page.locator('.folder-open').filter({ hasText: '持久化分组' })).toBeVisible();
 });

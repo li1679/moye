@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 
 test('nested preference changes use the normal persistence path', async ({ page }) => {
   await page.goto('/');
@@ -13,6 +14,7 @@ test('nested preference changes use the normal persistence path', async ({ page 
   await expect(page.locator('[data-action="pref:font:18"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
+  await toShelf(page);
   await openFontSettings();
   await expect(page.locator('[data-action="pref:font:18"]')).toHaveAttribute('aria-pressed', 'true');
 });

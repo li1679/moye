@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 import type { Page } from '@playwright/test';
 import { formatText, searchText, replaceText } from '../app/features/editor/text-tools';
 import { ChapterHistory } from '../app/features/editor/history';
@@ -86,6 +87,7 @@ test('undo survives chapter switching and new input invalidates redo', async ({ 
   await expect(editor(page)).toHaveText('第三次修改');
   await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await page.locator('[data-action="chapter:0"]').click();
   await expect(editor(page)).toHaveText('第三次修改');

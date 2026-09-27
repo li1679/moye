@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 import { SearchIndex } from '../app/features/editor/search-index';
 import { formatText } from '../app/features/editor/text-tools';
 
@@ -47,6 +48,7 @@ test('grid line and color updates retain live panel nodes, scroll and persisted 
   await page.locator('[data-action="close"]').click();
   await page.waitForTimeout(500);
   await page.reload();
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await page.locator('[data-action="chapter:0"]').click();
   await page.locator('[data-action="tool:settings"]').click();

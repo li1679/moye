@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { toShelf } from './seed';
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -74,6 +75,7 @@ test('corrupt backup and failed restore never overwrite existing library', async
   await page.locator('#confirm-backup-restore').click();
   await expect(page.locator('#backup-error')).not.toBeEmpty();
   await page.reload();
+  await toShelf(page);
   await expect(page.locator('[data-action="book:1"]')).toHaveCount(0);
 });
 
