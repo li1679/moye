@@ -4,6 +4,7 @@ import { renderIcons as icons } from './ui/icons';
 import { createSheets } from './ui/sheets';
 import Sortable from "sortablejs";
 import { persistState, saveNow } from './data/autosave';
+import { emptyLibrary, DEFAULT_SESSION } from './data/schema';
 import { createTxtFlows } from './features/txt/flows';
 import { ChapterHistory } from './features/editor/history';
 import { formatText, replaceText, countCharacters } from './features/editor/text-tools';
@@ -36,55 +37,15 @@ const ib = (name, label, action, extra = "") => {
 };
 const count = countCharacters;
 const state = await persistState({
-  tab: "edit",
-  page: "home",
-  folder: null,
-  book: 1,
-  chapter: 0,
-  view: "grid",
   batch: false,
   selected: new Set(),
   chapterBatch: false,
   selectedChapters: new Set(),
   settingTab: "基础",
   layout: false,
-  books: [],
-  groups: [],
-  prefs: {
-    font: 20,
-    line: 1.8,
-    bold: false,
-    indent: true,
-    spaces: false,
-    punctuation: false,
-    paragraph: "不限",
-    margin: 24,
-    bottom: 80,
-    grid: false,
-    near: true,
-    thick: false,
-    lineType: "短虚线",
-    lineColor: "#dadde0",
-    color: "#292d30",
-    paper: "#ffffff",
-    fontFamily: "系统默认",
-    autoScroll: true,
-  },
-  toolbars: {
-    top: ["copy", "format", "undo", "redo", "directory", "settings"],
-    bottom: ["keyboard", "find", "top", "bottom", null, null],
-  },
-  reading: {},
-  restorePoint: null,
-  editing: {},
-  readPrefs: {
-    font: 20,
-    line: 1.8,
-    paper: "#ffffff",
-    color: "#292d30",
-    brightness: 100,
-  },
   readerControls: false,
+  ...emptyLibrary(),
+  ...DEFAULT_SESSION,
 });
 const { settings, gridSettings, readerSettings, syncPreferenceControls } = createSettings({ state, openSheet, icon });
 const tools = {

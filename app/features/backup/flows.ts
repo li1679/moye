@@ -1,6 +1,6 @@
 import { saveNow, replaceLibrary } from '../../data/autosave';
 import { saveDocument } from '../txt/files';
-import { librarySnapshot, encodeBackup, decodeBackup, clone, type Library } from './model';
+import { snapshotLibrary, encodeBackup, decodeBackup, clone, type Library } from './model';
 type Context = { state: Library; openSheet: (title: string, html: string) => void; prepare: () => void };
 export function createBackupFlows({ state, openSheet, prepare }: Context) {
   const sheet = document.querySelector<HTMLDialogElement>('#sheet')!;
@@ -67,7 +67,7 @@ export function createBackupFlows({ state, openSheet, prepare }: Context) {
         confirm.onclick = () => void run(async () => {
           prepare();
           await saveNow(state);
-          const previous = librarySnapshot(state);
+          const previous = snapshotLibrary(state);
           previous.restorePoint = null;
           const next = clone(result.data);
           next.restorePoint = previous;
@@ -81,8 +81,8 @@ export function createBackupFlows({ state, openSheet, prepare }: Context) {
       sheet.querySelector('#confirm-previous')!.addEventListener('click', () => void run(async () => {
         prepare();
         await saveNow(state);
-        const previous = clone(state.restorePoint);
-        const current = librarySnapshot(state);
+        const previous = clone(state.restorePoint!);   // 按钮只在 restorePoint 存在时渲染
+        const current = snapshotLibrary(state);
         current.restorePoint = null;
         previous.restorePoint = current;
         await apply(previous);
@@ -91,3 +91,4 @@ export function createBackupFlows({ state, openSheet, prepare }: Context) {
   }
   return { backup };
 }
+

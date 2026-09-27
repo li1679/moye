@@ -1,92 +1,10 @@
-import { persistentFields } from '../../data/autosave';
-export type Chapter = { id: string; name: string; body: string; [key: string]: any };
-export type Book = { id: number; name: string; author: string; group: number | null; chapters: Chapter[]; [key: string]: any };
-export type Library = { books: Book[]; groups: { id: number; name: string }[]; [key: string]: any };
-// Copy JSON data without materializing another full-book JSON string.
-export function clone<T>(value: T): T {
-  if (value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.map(item => item === undefined ? null : clone(item)) as T;
-  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined).map(([key, item]) => [key, clone(item)])) as T;
-}
-export function librarySnapshot(state: Library): Library {
-  const result: Record<string, any> = {};
-  for (const key of persistentFields) result[key] = clone(state[key] ?? (key === 'restorePoint' ? null : {}));
-  return result as Library;
-}
+import { validateLibrary, snapshotLibrary, BACKUP_FIELDS, clone, type Library } from '../../data/schema';
+// 数据结构（类型、校验、快照、备份字段表）唯一定义在 app/data/schema.ts，这里只保留备份文件格式的编解码。
+export { clone, validateLibrary, snapshotLibrary, type Library } from '../../data/schema';
 
-function object(value: any): value is Record<string, any> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function requireValue(condition: unknown, message: string): asserts condition { if (!condition) throw new Error('备份无效：' + message); }
-export function validateLibrary(value: unknown): asserts value is Library {
-  requireValue(object(value), '书库结构错误');
-  const pending: object[] = [value];
-  const checked = new WeakSet<object>();
-  while (pending.length) {
-    const item = pending.pop()!;
-    if (checked.has(item)) continue;
-    checked.add(item);
-    for (const key of Object.keys(item)) {
-      requireValue(!['__proto__', 'constructor', 'prototype'].includes(key), '包含不允许的字段');
-      const child = (item as Record<string, unknown>)[key];
-      if (child !== null && typeof child === 'object') pending.push(child);
-    }
-  }
-  requireValue(Array.isArray(value.books) && Array.isArray(value.groups), '缺少书籍或分组');
-  const groups = new Set<number>();
-  for (const group of value.groups) {
-    requireValue(object(group) && Number.isSafeInteger(group.id) && typeof group.name === 'string' && !groups.has(group.id), '分组无效或 ID 重复');
-    groups.add(group.id);
-  }
-  const checkBooks = (books: any[], checkGroups: boolean) => {
-    const ids = new Set<number>(), chapterIds = new Set<string>();
-    for (const book of books) {
-      requireValue(object(book) && Number.isSafeInteger(book.id) && !ids.has(book.id) && typeof book.name === 'string' && typeof book.author === 'string' && Array.isArray(book.chapters), '书籍无效或 ID 重复');
-      ids.add(book.id);
-      requireValue(book.group === null || Number.isSafeInteger(book.group) && (!checkGroups || groups.has(book.group)), '分组引用无效');
-      requireValue(!book.image || typeof book.image === 'string' && /^data:image\/(?:png|jpeg|jpg|webp|gif|avif|bmp|svg\+xml);base64,[a-zA-Z0-9+/=\s]+$/.test(book.image), '封面须为内嵌图片');
-      for (const chapter of book.chapters) {
-        requireValue(object(chapter) && typeof chapter.id === 'string' && chapter.id.length > 0 && !chapterIds.has(chapter.id) && typeof chapter.name === 'string' && typeof chapter.body === 'string', '章节无效或 ID 重复');
-        chapterIds.add(chapter.id);
-        if (chapter.sourceHeading != null) requireValue(object(chapter.sourceHeading) && typeof chapter.sourceHeading.name === 'string' && typeof chapter.sourceHeading.raw === 'string', '章节来源标题错误');
-      }
-    }
-  };
-  checkBooks(value.books, true);
-  for (const key of ['prefs', 'readPrefs', 'reading', 'editing', 'toolbars']) requireValue(object(value[key]), '缺少配置：' + key);
-  requireValue(['grid', 'list'].includes(value.view), '书架显示方式错误');
-  const tools = new Set(['copy','format','undo','redo','directory','settings','keyboard','find','top','bottom','previous','next']);
-  for (const key of ['top','bottom']) requireValue(Array.isArray(value.toolbars[key]) && value.toolbars[key].every((tool: unknown) => tool === null || tools.has(String(tool))), '工具栏配置错误');
-  for (const preferences of [value.prefs, value.readPrefs]) {
-    requireValue(Number.isFinite(Number(preferences.font)) && Number(preferences.font) >= 10 && Number(preferences.font) <= 80, '字号超出范围');
-    requireValue(Number.isFinite(Number(preferences.line)) && Number(preferences.line) >= 1 && Number(preferences.line) <= 4, '行距超出范围');
-    for (const key of ['paper', 'color']) requireValue(typeof preferences[key] === 'string' && /^#[0-9a-fA-F]{6}$/.test(preferences[key]), '颜色无效');
-    for (const key of ['margin', 'bottom']) if (preferences[key] !== undefined) requireValue(Number.isFinite(Number(preferences[key])) && Number(preferences[key]) >= 0 && Number(preferences[key]) <= 500, '边距无效');
-  }
-  if (value.readPrefs.themes) for (const key of ['day', 'night']) {
-    const theme = value.readPrefs.themes[key];
-    requireValue(object(theme) && /^#[0-9a-fA-F]{6}$/.test(theme.paper) && /^#[0-9a-fA-F]{6}$/.test(theme.color), '日夜主题无效');
-  }
-  const checkPositions = (positions: Record<string, any>, reading: boolean) => {
-    for (const position of Object.values(positions)) {
-      requireValue(object(position) && Number.isFinite(position.scroll) && position.scroll >= 0, '滚动位置无效');
-      if (reading) requireValue(Number.isInteger(position.chapter) && position.chapter >= 0 && (position.chapterId === undefined || typeof position.chapterId === 'string'), '阅读章节位置无效');
-      if (position.anchor) requireValue(object(position.anchor) && Number.isInteger(position.anchor.offset) && position.anchor.offset >= 0 && typeof position.anchor.context === 'string' && Number.isFinite(position.anchor.y), '文字锚点无效');
-      if (position.selection) requireValue(object(position.selection) && ['body','name'].includes(position.selection.field) && Number.isInteger(position.selection.start) && position.selection.start >= 0 && Number.isInteger(position.selection.end) && position.selection.end >= position.selection.start, '编辑选区无效');
-    }
-  };
-  checkPositions(value.reading, true);
-  checkPositions(value.editing, false);
-  for (const book of value.books) {
-    const position = value.reading[book.id];
-    if (position && book.chapters.length) requireValue(position.chapter < book.chapters.length && (!position.chapterId || book.chapters.some((chapter: Chapter) => chapter.id === position.chapterId)), '阅读位置引用不存在的章节');
-  }
-  if (value.restorePoint != null) {
-    requireValue(object(value.restorePoint) && value.restorePoint.restorePoint == null, '恢复前书库结构错误');
-    validateLibrary(value.restorePoint);
-  }
-}
 const BACKUP_LIMIT = 256 * 1024 * 1024;
-/** 备份包含的字段（版本 2）：不含 restorePoint。 */
-const BACKUP_FIELDS = ['books', 'groups', 'view', 'prefs', 'toolbars', 'reading', 'readPrefs', 'editing'] as const;
 export function utf8ByteLength(text: string): number {
   let bytes = 0;
   for (let i = 0; i < text.length; i++) {
@@ -104,7 +22,7 @@ async function digest(text: string) {
 }
 export async function encodeBackup(state: Library) {
   // Validate and capture synchronously before hashing; no mutable references survive the await.
-  const data = Object.fromEntries(BACKUP_FIELDS.map(key => [key, clone(state[key] ?? (key === 'books' || key === 'groups' ? [] : {}))])) as Library;
+  const data = Object.fromEntries(BACKUP_FIELDS.map(key => [key, clone((state as Record<string, unknown>)[key] ?? (key === 'books' || key === 'groups' ? [] : {}))])) as Library;
   validateLibrary(data);
   const payload = JSON.stringify(data);
   if (utf8ByteLength(payload) > BACKUP_LIMIT) throw new Error('备份超过 256MiB 上限。');
