@@ -1,8 +1,15 @@
 let picker: HTMLDialogElement | undefined;
 
+// 新版 Chromium 的 dialog close 事件是异步派发的：close() 返回后 aria-label 还会挂一小会儿，
+// 页面上出现两个相同 aria-label 的元素。关闭前先同步移除，屏幕阅读器和测试都不再有歧义。
+function closeDialogOf(dialog: HTMLDialogElement) {
+  dialog.removeAttribute('aria-label');
+  dialog.close();
+}
+
 export function closePicker(): boolean {
   if (!picker?.open) return false;
-  picker.close();
+  closeDialogOf(picker);
   return true;
 }
 
@@ -19,7 +26,7 @@ function showPicker(title: string, control: HTMLElement) {
   cancel.type = 'button';
   cancel.className = 'text-action';
   cancel.textContent = '取消';
-  cancel.onclick = () => dialog.close();
+  cancel.onclick = () => closeDialogOf(dialog);
   header.append(heading, cancel);
   const content = document.createElement('div');
   content.className = 'sheet-content';
@@ -43,10 +50,13 @@ function showPicker(title: string, control: HTMLElement) {
   dialog.addEventListener('click', event => {
     if (event.target !== dialog) return;
     const rect = dialog.getBoundingClientRect();
-    if (event.clientY < rect.top || event.clientX < rect.left || event.clientX > rect.right || event.clientY > rect.bottom) dialog.close();
+    if (event.clientY < rect.top || event.clientX < rect.left || event.clientX > rect.right || event.clientY > rect.bottom) closeDialogOf(dialog);
   });
+  // Escape 键关闭：cancel 事件同步派发，先移除 aria-label 再关闭。
+  dialog.addEventListener('cancel', () => dialog.removeAttribute('aria-label'));
   return { dialog, content };
 }
+
 
 function selectPicker(select: HTMLSelectElement) {
   const title = select.getAttribute('aria-label') || select.closest('label')?.querySelector('span')?.textContent || '选择';
@@ -64,11 +74,11 @@ function selectPicker(select: HTMLSelectElement) {
     button.textContent = option.text;
     button.disabled = option.disabled || (option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled);
     button.onclick = () => {
-      if (!select.isConnected || select.disabled) { dialog.close(); return; }
+      if (!select.isConnected || select.disabled) { closeDialogOf(dialog); return; }
       select.selectedIndex = index;
       select.dispatchEvent(new Event('input', { bubbles: true }));
       select.dispatchEvent(new Event('change', { bubbles: true }));
-      dialog.close();
+      closeDialogOf(dialog);
     };
     if (option.selected) selected = button;
     content.append(button);
@@ -132,7 +142,7 @@ function colorPicker(input: HTMLInputElement) {
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    dialog.close();
+    closeDialogOf(dialog);
   });
   content.append(form);
   sync(); dialog.showModal();

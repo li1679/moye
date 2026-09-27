@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "cap:sync": "npm run build && cap sync",
-    "android": "cap open android"
+    "android": "cap open android",
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.1",
