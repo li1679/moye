@@ -1,10 +1,8 @@
 import { closePicker } from './features/editor/pickers';
-import { enableChapterSwipe } from './features/editor/chapter-swipe';
 import { renderIcons as icons } from './ui/icons';
 import { createSheets } from './ui/sheets';
-import Sortable from "sortablejs";
 import { persistState, saveNow } from './data/autosave';
-import { emptyLibrary, DEFAULT_SESSION, nextLibraryOrder } from './data/schema';
+import { nextLibraryOrder } from './data/schema';
 import { createTxtFlows } from './features/txt/flows';
 import { ChapterHistory } from './features/editor/history';
 import { formatText, replaceText, wordsOf, bookWords } from './features/editor/text-tools';
@@ -18,7 +16,7 @@ import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 import { createBackupFlows } from './features/backup/flows';
 import { SearchClient } from './features/editor/search-client';
-import { rememberBookChange, currentBookUndo, pendingBookUndo, takeBookUndo, clearBookUndo } from './features/editor/book-undo';
+import { rememberBookChange } from './features/editor/book-undo';
 import { compressCover } from './features/covers';
 import { createSettings } from './ui/settings';
 import { createInitialState } from './core/state';
@@ -30,6 +28,8 @@ import { registerActions, createDispatcher } from './core/actions';
 import { createRouter } from './core/router';
 import { createShelfPage } from './pages/shelf';
 import { createMePage } from './pages/me';
+import { createChaptersPage, openChapter } from './pages/chapters';
+import { book as bookOf, chapter as chapterOf } from './core/library';
 
 /* UI state hydrated from the platform's local database before first render. */
 const state = await persistState(createInitialState());
@@ -50,10 +50,10 @@ const tools = {
 };
 const app = $("#app"),
   sheet = $("#sheet");
-const book = () => state.books.find((b) => b.id === state.book);
+const book = () => bookOf(state);
 const txtFlows = createTxtFlows({ state, openSheet, closeSheet, render: () => render(), toast });
 const backupFlows = createBackupFlows({ state, openSheet, prepare: () => ctx.dispose() });
-const chapter = () => book()?.chapters[state.chapter];
+const chapter = () => chapterOf(state);
 const history = new ChapterHistory();
 let historyChapterId = null;
 function resetHistory(id = null) {
@@ -79,7 +79,6 @@ function scheduleWordCount(value) {
     });
   }, 200);
 }
-let returnFocus;
 const panels = createSheets(sheet, { escape: esc, button: ib, icons, restored() {
   const gridStatus = $('[data-action="grid"] .row-value', sheet);
   if (gridStatus) gridStatus.textContent = state.prefs.grid ? '已开启' : '已关闭';
@@ -117,72 +116,28 @@ sheet.addEventListener("click", (e) => {
       closeSheet();
   }
 });
-let chapterSort;
 function prepareRender() {
   if (state.page !== "editor") resetHistory();
-  chapterSort?.destroy();
-  chapterSort = null;
 }
 const shelfPage = createShelfPage(ctx, { bookForm, inputForm, confirmSheet, searchBooks });
 const mePage = createMePage(ctx);
 registerActions(shelfPage);
 registerActions(mePage);
+const chaptersPage = createChaptersPage(ctx, { confirmSheet, applyFormat });
+registerActions(chaptersPage);
+chaptersPage.install?.();
 function renderHome() {
   if (state.tab === "me") mePage.render?.();
   else shelfPage.render?.();
 }
 const router = createRouter(ctx, {
   editor: renderEditor,
-  chapters: renderChapters,
+  chapters: () => chaptersPage.render?.(),
   home: renderHome,
   prepare: prepareRender,
 });
 ctx.render = router.render;
 const render = () => ctx.render();
-function renderChapters() {
-  const b = book();
-  const managing = state.chapterBatch;
-  const selected = state.selectedChapters;
-  const all = b.chapters.length > 0 && b.chapters.every(c => selected.has(c));
-  app.innerHTML = `<main class="app-shell chapter-page ${managing ? "chapter-managing" : ""}"><header class="topbar">${ib("chevron-left", managing ? "退出章节管理" : "返回书架", managing ? "finish-chapters" : "home")}<div class="title center"><h2>${esc(b.name)}</h2><small>${bookWords(b).toLocaleString()} 字</small></div>${managing ? `<button class="text-action" data-action="finish-chapters">完成</button>` : ib("ellipsis-vertical", "书籍菜单", "book-menu")}</header><div class="chapter-toolbar"><strong>章节</strong><small ${managing ? 'role="status" aria-live="polite"' : ""}>${managing ? `已选 ${selected.size} / ${b.chapters.length} 章` : `${b.chapters.length} 章`}</small>${managing ? "" : ib("square-check-big", "管理章节", "manage-chapters") + ib("file-plus-2", "新建章节", "new-chapter")}</div><section class="chapter-list">${b.chapters.map((c, i) => managing ? `<button class="chapter-row chapter-select-row ${selected.has(c) ? "chapter-selected" : ""}" data-chapter-index="${i}" data-chapter-handle="${i}" data-action="select-chapter:${i}" aria-pressed="${selected.has(c)}" title="点击选择，长按拖动排序">${icon(selected.has(c) ? "square-check" : "square")}<div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div></button>` : `<div class="chapter-swipe"><button class="chapter-delete" data-action="delete-chapter:${i}" aria-label="删除章节：${esc(c.name)}">删除</button><button class="chapter-row" data-action="chapter:${i}"><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div>${icon("chevron-right")}</button></div>`).join("")}</section>${!b.chapters.length ? '<div class="empty">暂无章节</div>' : ""}${managing ? `<footer class="batch-footer chapter-batch-footer"><button data-action="select-all-chapters" ${b.chapters.length ? "" : "disabled"}>${icon(all ? "square-minus" : "square-check-big")}${all ? "取消全选" : "全选"}</button><button data-action="invert-chapters" ${b.chapters.length ? "" : "disabled"}>${icon("repeat-2")}反选</button><button data-action="delete-chapters" ${selected.size ? "" : "disabled"}>${icon("trash-2")}删除 (${selected.size})</button></footer>` : `<button class="new-chapter" data-action="new-chapter">${icon("file-plus-2")}新建章节</button>`}</main>`;
-  icons();
-  if (!managing) enableChapterSwipe($(".chapter-list"));
-  if (managing && b.chapters.length) {
-    chapterSort = new Sortable($(".chapter-list"), {
-      draggable: "[data-chapter-index]",
-      delay: 300,
-      delayOnTouchOnly: true,
-      touchStartThreshold: 6,
-      animation: 150,
-      forceFallback: true,
-      fallbackTolerance: 5,
-      ghostClass: "drag-ghost",
-      onEnd() {
-        updateChapters(Array.from(document.querySelectorAll("[data-chapter-index]"), el => b.chapters[Number(el.dataset.chapterIndex)]));
-        reindexChapterRows();
-      },
-    });
-  }
-}
-function reindexChapterRows() {
-  document.querySelectorAll(".chapter-list [data-chapter-index]").forEach((row, i) => {
-    row.dataset.chapterIndex = String(i);
-    row.dataset.chapterHandle = String(i);
-    row.dataset.action = "select-chapter:" + i;
-  });
-  updateChapterSelection();
-}
-function updateChapters(next, b = book()) {
-  const current = b.chapters[state.chapter];
-  const progress = state.reading[b.id];
-  const readingChapter = progress ? b.chapters[progress.chapter] : null;
-  b.chapters = next;
-  state.chapter = Math.max(0, next.indexOf(current));
-  if (progress) {
-    const index = next.indexOf(readingChapter);
-    state.reading[b.id] = index >= 0 ? { ...progress, chapter: index } : { chapter: Math.min(progress.chapter, Math.max(0, next.length - 1)), scroll: 0 };
-  }
-}
 function updateHistoryTools() {
   if (state.page !== 'editor' || state.layout || !chapter()) return;
   for (const direction of ['undo', 'redo']) {
@@ -190,23 +145,6 @@ function updateHistoryTools() {
       button.disabled = !history.canApply(chapter(), direction);
     });
   }
-}
-function updateChapterSelection() {
-  const chapters = book().chapters, selected = state.selectedChapters;
-  document.querySelectorAll('[data-chapter-index]').forEach(row => {
-    const active = selected.has(chapters[Number(row.dataset.chapterIndex)]);
-    row.classList.toggle('chapter-selected', active);
-    row.setAttribute('aria-pressed', String(active));
-    row.querySelector('svg')?.remove();
-    row.insertAdjacentHTML('afterbegin', icon(active ? 'square-check' : 'square'));
-  });
-  $('.chapter-toolbar small').textContent = `已选 ${selected.size} / ${chapters.length} 章`;
-  const all = chapters.length > 0 && chapters.every(c => selected.has(c));
-  $('[data-action="select-all-chapters"]').innerHTML = icon(all ? 'square-minus' : 'square-check-big') + (all ? '取消全选' : '全选');
-  const remove = $('[data-action="delete-chapters"]');
-  remove.disabled = !selected.size;
-  remove.innerHTML = icon('trash-2') + `删除 (${selected.size})`;
-  icons();
 }
 function toolbar(where) {
   return state.toolbars[where]
@@ -500,12 +438,6 @@ function directory(reverse = false) {
   );
   $(".sheet-content", sheet).scrollTop = 0;
 }
-function manageChapters() {
-  state.chapterBatch = true;
-  state.selectedChapters.clear();
-  closeSheet();
-  render();
-}
 function commitBody(value, target = chapter()) {
   if (state.page === 'editor' && target === chapter()) history.record(target, 'body', target.body, value);
   target.body = value;
@@ -542,24 +474,6 @@ async function applyFormat(all = false) {
   pendingFormat = targets.map(c => ({ chapter: c, before: c.body, after: formatText(c.body, state.prefs) })).filter(change => change.before !== change.after);
   if (!pendingFormat.length) { closeSheet(); return; }
   await dispatch('apply-format:' + (all ? 'book' : 'chapter'));
-}
-function openChapter(arg) {
-  state.chapter = Number(arg);
-  if (state.page !== "reader") state.page = "editor";
-  else state.reading[state.book] = { chapter: state.chapter, scroll: 0 };
-  closeSheet();
-  render();
-}
-function chapterSelection(_arg, _arg2, _arg3, raw) {
-  const kind = raw.split(':')[0];
-  const chapters = book().chapters;
-  const all = chapters.every(c => state.selectedChapters.has(c));
-  if (kind === "invert-chapters") {
-    state.selectedChapters = new Set(chapters.filter(c => !state.selectedChapters.has(c)));
-  } else {
-    state.selectedChapters = new Set(all ? [] : chapters);
-  }
-  updateChapterSelection();
 }
 function openSearch(_arg, _arg2, _arg3, raw) {
   const kind = raw.split(':')[0];
@@ -616,129 +530,7 @@ const handlers = {
   'sheet-back'() {
     sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
   },
-  chapters() {
-    state.page = "chapters";
-    closeSheet();
-    render();
-  },
-  chapter: openChapter,
-  'jump-chapter': openChapter,
-  'new-chapter'() {
-    book().chapters.push({name: "第" + (book().chapters.length + 1) + "章", body: ""});
-    render();
-  },
-  'book-menu'() {
-    const pending = pendingBookUndo(state.book);
-    openSheet(
-      "书籍操作",
-      toolMenu([
-        ...(pending ? [["undo-2", "撤销" + pending.label, "undo-book-change"]] : []),
-        ["book-open-text", "书籍详情", "details"],
-        ["pencil-line", "修改信息", "edit-book"],
-        ["square-check-big", "管理章节", "manage-chapters"],
-        ["pilcrow", "全书排版", "format-book"],
-        ["search", "本书搜索", "book-search"],
-        ["file-input", "导入章节", "import"],
-        ["file-output", "导出书籍", "export-book"],
-        ["trash-2", "删除书籍", "delete-book", true],
-      ]),
-    );
-  },
-  details() {
-    const b = book();
-    openSheet(
-      "书籍详情",
-      `<div class="cover-picker">${cover(b)}</div><h2>${esc(b.name)}</h2><p class="hint">${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${bookWords(b)} 字</p><p class="hint">${esc(b.description || "暂无简介")}</p>`,
-    );
-  },
-  'delete-book'() {
-    confirmSheet(
-      "删除书籍",
-      `删除《${book().name}》及其章节？删除后 5 秒内可以撤销。`,
-      "confirm-book",
-    );
-  },
-  'confirm-book'() {
-    const b = book();
-    const index = state.books.indexOf(b);
-    const reading = state.reading[b.id];
-    const editing = Object.fromEntries(b.chapters.filter(c => state.editing[c.id]).map(c => [c.id, state.editing[c.id]]));
-    state.books = state.books.filter((item) => item !== b);
-    delete state.reading[b.id];
-    for (const c of b.chapters) delete state.editing[c.id];
-    state.page = "home";
-    closeSheet();
-    render();
-    toast(`已删除《${b.name}》`, { label: '撤销', run: () => {
-      if (state.books.includes(b)) return;
-      state.books.splice(Math.min(index, state.books.length), 0, b);
-      if (reading) state.reading[b.id] = reading;
-      for (const [id, position] of Object.entries(editing)) state.editing[id] = position;
-      render();
-    } });
-  },
-  'manage-chapters'() {
-    manageChapters();
-  },
-  'finish-chapters'() {
-    state.chapterBatch = false;
-    state.selectedChapters.clear();
-    render();
-  },
-  'select-chapter'(arg) {
-    const c = book().chapters[Number(arg)];
-    state.selectedChapters.has(c) ? state.selectedChapters.delete(c) : state.selectedChapters.add(c);
-    updateChapterSelection();
-  },
-  'select-all-chapters': chapterSelection,
-  'invert-chapters': chapterSelection,
-  'delete-chapter'(arg) {
-    const c = book().chapters[Number(arg)];
-    confirmSheet('删除章节', '确定删除《' + c.name + '》？删除后 5 秒内可以撤销。', 'confirm-single-chapter:' + c.id);
-    returnFocus = $('[data-action="chapter:' + arg + '"]');
-    const swiped = returnFocus?.closest('.chapter-swipe');
-    sheet.addEventListener('close', () => swiped?.classList.remove('swiped'), { once: true });
-  },
-  async 'confirm-single-chapter'(arg) {
-    const b = book();
-    const c = b.chapters.find(item => item.id === arg);
-    if (!c) throw new Error('章节已不存在');
-    const index = b.chapters.indexOf(c);
-    const position = state.editing[c.id];
-    updateChapters(b.chapters.filter(item => item !== c), b);
-    delete state.editing[c.id];
-    closeSheet();
-    render();
-    await saveNow(state);
-    toast('已删除 1 章', { label: '撤销', run: () => {
-      if (b.chapters.includes(c) || !state.books.includes(b)) return;
-      b.chapters.splice(Math.min(index, b.chapters.length), 0, c);
-      if (position) state.editing[c.id] = position;
-      render();
-    } });
-  },
-  'delete-chapters'() {
-    if (!state.selectedChapters.size) return;
-    confirmSheet("删除章节", "删除选中的 " + state.selectedChapters.size + " 个章节？删除后 5 秒内可以撤销。", "confirm-chapters");
-  },
-  'confirm-chapters'() {
-    const b = book();
-    const removed = b.chapters.map((c, index) => ({ c, index, position: state.editing[c.id] })).filter(({ c }) => state.selectedChapters.has(c)).sort((x, y) => x.index - y.index);
-    updateChapters(b.chapters.filter(c => !state.selectedChapters.has(c)), b);
-    for (const { c } of removed) delete state.editing[c.id];
-    state.selectedChapters.clear();
-    closeSheet();
-    render();
-    toast(`已删除 ${removed.length} 章`, { label: '撤销', run: () => {
-      if (!state.books.includes(b)) return;
-      for (const { c, index, position } of removed) {
-        if (b.chapters.includes(c)) continue;
-        b.chapters.splice(Math.min(index, b.chapters.length), 0, c);
-        if (position) state.editing[c.id] = position;
-      }
-      render();
-    } });
-  },
+  'jump-chapter'(arg) { openChapter(ctx, arg); },
   'global-search': openSearch,
   'book-search': openSearch,
   'chapter-search': openSearch,
@@ -947,10 +739,6 @@ const handlers = {
     toast('全书替换已保存');
   },
   export: exportText,
-  'export-book': exportText,
-  async 'format-book'() {
-    await applyFormat(true);
-  },
   async 'apply-format'(arg) {
     const changes = pendingFormat;
     if (!changes?.length) return;
@@ -961,21 +749,6 @@ const handlers = {
     closeSheet();
     render();
     await saveNow(state);
-  },
-  async 'undo-book-change'() {
-    const entry = takeBookUndo(state.book);
-    if (!entry) return;
-    const b = book();
-    let skipped = 0;
-    for (const change of entry.changes) {
-      const c = b.chapters.find(item => item.id === change.chapterId);
-      if (c && c.body === change.after) c.body = change.before;
-      else skipped++;
-    }
-    closeSheet();
-    render();
-    await saveNow(state);
-    toast(skipped ? `已撤销${entry.label}，${skipped} 章之后改过，没有撤销` : `已撤销${entry.label}`);
   },
   'reader-settings'() {
     readerSettings();
@@ -1182,24 +955,6 @@ document.addEventListener("submit", (e) => {
     closeSheet();
     render();
   }
-});
-document.addEventListener("keydown", (e) => {
-  const handle = e.target.closest("[data-chapter-handle]");
-  if (!handle || !state.chapterBatch || !["ArrowUp", "ArrowDown"].includes(e.key)) return;
-  e.preventDefault();
-  const from = Number(handle.dataset.chapterHandle);
-  const to = from + (e.key === "ArrowUp" ? -1 : 1);
-  const next = [...book().chapters];
-  if (to < 0 || to >= next.length) return;
-  [next[from], next[to]] = [next[to], next[from]];
-  const list = $('.chapter-list');
-  const scroll = list.scrollTop;
-  const sibling = list.children[to];
-  list.insertBefore(handle, to < from ? sibling : sibling.nextSibling);
-  updateChapters(next);
-  reindexChapterRows();
-  list.scrollTop = scroll;
-  handle.focus({ preventScroll: true });
 });
 
 if (Capacitor.isNativePlatform()) {
