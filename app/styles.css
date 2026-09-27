@@ -1494,7 +1494,8 @@ dialog[open]::backdrop {
 .search-input input::placeholder {
   color: var(--faint);
 }
-
+/* 打开书库时的读库提示 */
+.boot { padding: 40vh 24px 0; text-align: center; color: var(--muted); }
 /* 空状态 */
 .empty {
   padding: 56px 12px;
