@@ -21,33 +21,12 @@ import { SearchClient } from './features/editor/search-client';
 import { rememberBookChange, currentBookUndo, pendingBookUndo, takeBookUndo, clearBookUndo } from './features/editor/book-undo';
 import { compressCover } from './features/covers';
 import { createSettings } from './ui/settings';
+import { createInitialState } from './core/state';
+import { icon, ib, toolMenu } from './kit/ui';
+import { $, esc } from './core/dom';
 
 /* UI state hydrated from the platform's local database before first render. */
-const $ = (q, root = document) => root.querySelector(q);
-const esc = (s) =>
-  String(s ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        c
-      ],
-  );
-const icon = (name) => `<i data-lucide="${name}"></i>`;
-const ib = (name, label, action, extra = "") => {
-  const accessibleLabel = action === 'book-search' ? '本书搜索' : action === 'chapter-search' ? '本章搜索' : label;
-  return `<button class="icon" aria-label="${esc(accessibleLabel)}" title="${esc(accessibleLabel)}" data-action="${action}" ${extra}>${icon(name)}</button>`;
-};
-const state = await persistState({
-  batch: false,
-  selected: new Set(),
-  chapterBatch: false,
-  selectedChapters: new Set(),
-  settingTab: "基础",
-  layout: false,
-  readerControls: false,
-  ...emptyLibrary(),
-  ...DEFAULT_SESSION,
-});
+const state = await persistState(createInitialState());
 const { settings, gridSettings, readerSettings, syncPreferenceControls } = createSettings({ state, openSheet, icon });
 const tools = {
   copy: ["copy", "拷贝正文"],
@@ -360,7 +339,7 @@ function renderEditor() {
     return;
   }
   if (!reader) resetHistory(c.id ??= crypto.randomUUID());
-  app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "全文搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + wordsOf(c) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
+  app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + wordsOf(c) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
   icons();
   applyAppearance();
   updateHistoryTools();
@@ -407,9 +386,6 @@ function renderEditor() {
     }, toast);
     applyAppearance();
   }
-}
-function toolMenu(items) {
-  return `<div class="tool-grid">${items.map(([i, n, a, d]) => `<button class="tool-item ${d ? "danger" : ""}" data-action="${a}"><span class="tool-bubble">${icon(i)}</span><span>${n}</span></button>`).join("")}</div>`;
 }
 function layoutSettings() {
   state.layoutScroll = $(".editor-scroll")?.scrollTop || 0;
