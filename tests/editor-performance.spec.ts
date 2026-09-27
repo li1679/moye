@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { ChapterHistory } from '../app/features/editor/history';
 import { extractInputEdit } from '../app/features/editor/input-session';
-import { countCharacters } from '../app/features/editor/text-tools';
+import { countCharacters, countWords } from '../app/features/editor/text-tools';
 
 test('input fast path extracts literal insert and delete patches', () => {
   expect(extractInputEdit('abc', { start: 1, end: 1 }, { inputType: 'insertText', data: '新' })).toEqual({ offset: 1, before: '', after: 'a新bc', inputType: 'insertText' });
@@ -12,6 +12,7 @@ test('input fast path extracts literal insert and delete patches', () => {
 
 test('character count uses Unicode code points without copying text', () => {
   expect(countCharacters('a😀中')).toBe(3);
+  expect(countWords('　　第一段\n\n第二 段😀')).toBe(7);
 });
 
 test('history keeps at most 100 undo operations per chapter', () => {

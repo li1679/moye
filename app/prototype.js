@@ -7,7 +7,7 @@ import { persistState, saveNow } from './data/autosave';
 import { emptyLibrary, DEFAULT_SESSION } from './data/schema';
 import { createTxtFlows } from './features/txt/flows';
 import { ChapterHistory } from './features/editor/history';
-import { formatText, replaceText, countCharacters } from './features/editor/text-tools';
+import { formatText, replaceText, wordsOf, bookWords } from './features/editor/text-tools';
 import { extractInputEdit } from './features/editor/input-session';
 import { createWordCountClient } from './features/editor/word-count';
 import { editorText } from './features/editor/dom-text';
@@ -36,7 +36,6 @@ const ib = (name, label, action, extra = "") => {
   const accessibleLabel = action === 'book-search' ? '本书搜索' : action === 'chapter-search' ? '本章搜索' : label;
   return `<button class="icon" aria-label="${esc(accessibleLabel)}" title="${esc(accessibleLabel)}" data-action="${action}" ${extra}>${icon(name)}</button>`;
 };
-const count = countCharacters;
 const state = await persistState({
   batch: false,
   selected: new Set(),
@@ -105,7 +104,6 @@ function disposeReadingEditing() {
   disposeEditor?.();
   disposeEditor = null;
 }
-const total = (b) => b.chapters.reduce((n, c) => n + count(c.body), 0);
 let toastTimer, returnFocus;
 let toastAction = null;
 function toast(message, action) {
@@ -231,7 +229,7 @@ function renderChapters() {
   const managing = state.chapterBatch;
   const selected = state.selectedChapters;
   const all = b.chapters.length > 0 && b.chapters.every(c => selected.has(c));
-  app.innerHTML = `<main class="app-shell chapter-page ${managing ? "chapter-managing" : ""}"><header class="topbar">${ib("chevron-left", managing ? "退出章节管理" : "返回书架", managing ? "finish-chapters" : "home")}<div class="title center"><h2>${esc(b.name)}</h2><small>${total(b).toLocaleString()} 字</small></div>${managing ? `<button class="text-action" data-action="finish-chapters">完成</button>` : ib("ellipsis-vertical", "书籍菜单", "book-menu")}</header><div class="chapter-toolbar"><strong>章节</strong><small ${managing ? 'role="status" aria-live="polite"' : ""}>${managing ? `已选 ${selected.size} / ${b.chapters.length} 章` : `${b.chapters.length} 章`}</small>${managing ? "" : ib("square-check-big", "管理章节", "manage-chapters") + ib("file-plus-2", "新建章节", "new-chapter")}</div><section class="chapter-list">${b.chapters.map((c, i) => managing ? `<button class="chapter-row chapter-select-row ${selected.has(c) ? "chapter-selected" : ""}" data-chapter-index="${i}" data-chapter-handle="${i}" data-action="select-chapter:${i}" aria-pressed="${selected.has(c)}" title="点击选择，长按拖动排序">${icon(selected.has(c) ? "square-check" : "square")}<div class="chapter-info"><strong>${esc(c.name)}</strong><small>${count(c.body).toLocaleString()} 字</small></div></button>` : `<div class="chapter-swipe"><button class="chapter-delete" data-action="delete-chapter:${i}" aria-label="删除章节：${esc(c.name)}">删除</button><button class="chapter-row" data-action="chapter:${i}"><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${count(c.body).toLocaleString()} 字</small></div>${icon("chevron-right")}</button></div>`).join("")}</section>${!b.chapters.length ? '<div class="empty">暂无章节</div>' : ""}${managing ? `<footer class="batch-footer chapter-batch-footer"><button data-action="select-all-chapters" ${b.chapters.length ? "" : "disabled"}>${icon(all ? "square-minus" : "square-check-big")}${all ? "取消全选" : "全选"}</button><button data-action="invert-chapters" ${b.chapters.length ? "" : "disabled"}>${icon("repeat-2")}反选</button><button data-action="delete-chapters" ${selected.size ? "" : "disabled"}>${icon("trash-2")}删除 (${selected.size})</button></footer>` : `<button class="new-chapter" data-action="new-chapter">${icon("file-plus-2")}新建章节</button>`}</main>`;
+  app.innerHTML = `<main class="app-shell chapter-page ${managing ? "chapter-managing" : ""}"><header class="topbar">${ib("chevron-left", managing ? "退出章节管理" : "返回书架", managing ? "finish-chapters" : "home")}<div class="title center"><h2>${esc(b.name)}</h2><small>${bookWords(b).toLocaleString()} 字</small></div>${managing ? `<button class="text-action" data-action="finish-chapters">完成</button>` : ib("ellipsis-vertical", "书籍菜单", "book-menu")}</header><div class="chapter-toolbar"><strong>章节</strong><small ${managing ? 'role="status" aria-live="polite"' : ""}>${managing ? `已选 ${selected.size} / ${b.chapters.length} 章` : `${b.chapters.length} 章`}</small>${managing ? "" : ib("square-check-big", "管理章节", "manage-chapters") + ib("file-plus-2", "新建章节", "new-chapter")}</div><section class="chapter-list">${b.chapters.map((c, i) => managing ? `<button class="chapter-row chapter-select-row ${selected.has(c) ? "chapter-selected" : ""}" data-chapter-index="${i}" data-chapter-handle="${i}" data-action="select-chapter:${i}" aria-pressed="${selected.has(c)}" title="点击选择，长按拖动排序">${icon(selected.has(c) ? "square-check" : "square")}<div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div></button>` : `<div class="chapter-swipe"><button class="chapter-delete" data-action="delete-chapter:${i}" aria-label="删除章节：${esc(c.name)}">删除</button><button class="chapter-row" data-action="chapter:${i}"><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div>${icon("chevron-right")}</button></div>`).join("")}</section>${!b.chapters.length ? '<div class="empty">暂无章节</div>' : ""}${managing ? `<footer class="batch-footer chapter-batch-footer"><button data-action="select-all-chapters" ${b.chapters.length ? "" : "disabled"}>${icon(all ? "square-minus" : "square-check-big")}${all ? "取消全选" : "全选"}</button><button data-action="invert-chapters" ${b.chapters.length ? "" : "disabled"}>${icon("repeat-2")}反选</button><button data-action="delete-chapters" ${selected.size ? "" : "disabled"}>${icon("trash-2")}删除 (${selected.size})</button></footer>` : `<button class="new-chapter" data-action="new-chapter">${icon("file-plus-2")}新建章节</button>`}</main>`;
   icons();
   if (!managing) enableChapterSwipe($(".chapter-list"));
   if (managing && b.chapters.length) {
@@ -363,7 +361,7 @@ function renderEditor() {
     return;
   }
   if (!reader) resetHistory(c.id ??= crypto.randomUUID());
-  app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "全文搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + count(c.body) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
+  app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "全文搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + wordsOf(c) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
   icons();
   applyAppearance();
   updateHistoryTools();
@@ -521,7 +519,7 @@ function searchResults() {
         ? matches
             .map(
               (b) =>
-                `<button class="result" data-action="found-book:${b.id}"><strong>${esc(b.name)}</strong><small>${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${total(b)} 字</small></button>`,
+                `<button class="result" data-action="found-book:${b.id}"><strong>${esc(b.name)}</strong><small>${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${bookWords(b)} 字</small></button>`,
             )
             .join("")
         : '<div class="empty">没有找到这本书</div>';
@@ -571,7 +569,7 @@ function directory(reverse = false) {
     chapters
       .map(
         ({ c, i }) =>
-          `<button class="chapter-row" data-action="jump-chapter:${i}"><div class="chapter-info"><strong ${i === state.chapter ? 'style="color:var(--accent)"' : ""}>${esc(c.name)}</strong><small>${count(c.body)} 字</small></div>${i === state.chapter ? icon("check") : ""}</button>`,
+          `<button class="chapter-row" data-action="jump-chapter:${i}"><div class="chapter-info"><strong ${i === state.chapter ? 'style="color:var(--accent)"' : ""}>${esc(c.name)}</strong><small>${wordsOf(c)} 字</small></div>${i === state.chapter ? icon("check") : ""}</button>`,
       )
       .join(""),
     {
@@ -893,7 +891,7 @@ async function action(a) {
     const b = book();
     openSheet(
       "书籍详情",
-      `<div class="cover-picker">${cover(b)}</div><h2>${esc(b.name)}</h2><p class="hint">${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${total(b)} 字</p><p class="hint">${esc(b.description || "暂无简介")}</p>`,
+      `<div class="cover-picker">${cover(b)}</div><h2>${esc(b.name)}</h2><p class="hint">${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${bookWords(b)} 字</p><p class="hint">${esc(b.description || "暂无简介")}</p>`,
     );
     return;
   }

@@ -1,4 +1,4 @@
-import { countCharacters } from './text-tools';
+import { countWords } from './text-tools';
 
 type CountResponse = { id: number; count: number };
 type WorkerLike = Pick<Worker, 'postMessage' | 'terminate'> & {
@@ -39,7 +39,7 @@ export function createWordCountClient(): WordCountClient {
       const id = ++nextId;
       latestId = id;
       const activeWorker = useWorker();
-      if (!activeWorker) return Promise.resolve(countCharacters(text));
+      if (!activeWorker) return Promise.resolve(countWords(text));
       return new Promise<number | null>((resolve, reject) => {
         pending.set(id, { resolve, reject });
         activeWorker.postMessage({ id, text });

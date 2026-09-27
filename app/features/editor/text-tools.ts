@@ -28,6 +28,36 @@ export function countCharacters(text: string): number {
   return count;
 }
 
+// 字数：除空白以外的字符数（按 Unicode 码点）。空白是指 JS 正则 \s 能匹配的全部字符，包括全角空格和换行。
+export function countWords(text: string): number {
+  let count = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < text.length) {
+      const next = text.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) { count++; i++; continue; }
+    }
+    if (isSpace(code)) continue;
+    count++;
+  }
+  return count;
+}
+function isSpace(code: number) {
+  return code === 0x20 || (code >= 0x09 && code <= 0x0d) || code === 0xa0 || code === 0x1680 || (code >= 0x2000 && code <= 0x200a)
+    || code === 0x2028 || code === 0x2029 || code === 0x202f || code === 0x205f || code === 0x3000 || code === 0xfeff;
+}
+
+// 按正文字符串缓存：正文没变时，直接返回上次的结果（同一个字符串对象，比较很快）。
+const wordCache = new WeakMap<object, { body: string; words: number }>();
+export function wordsOf(chapter: { body: string }): number {
+  const hit = wordCache.get(chapter);
+  if (hit && hit.body === chapter.body) return hit.words;
+  const words = countWords(chapter.body);
+  wordCache.set(chapter, { body: chapter.body, words });
+  return words;
+}
+export const bookWords = (book: { chapters: { body: string }[] }) => book.chapters.reduce((sum, chapter) => sum + wordsOf(chapter), 0);
+
 export type SearchDocument = { bookId: number; chapterId: string; title: string; bookName: string; body: string };
 export type SearchHit = { bookId: number; chapterId: string; title: string; bookName: string; offset: number; before: string; match: string; after: string };
 export function searchText(documents: SearchDocument[], query: string, page = 0) {
