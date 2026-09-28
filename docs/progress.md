@@ -52,7 +52,8 @@
 - [x] 2.8 页面布局　- [x] 2.9 搜索　- [x] 2.10 表单与原生监听
 - [x] 2.11 组装入口，删除 prototype.js（新建 app/app.ts：state/panels/ctx 组装、各页面模块创建与 registerActions、组装层自己的三个动作 close/notice-action/sheet-back、全局 click 分发监听、原生监听安装、首次渲染与空闲封面压缩；main.ts 改为 await import('./app')；tsconfig 删除 allowJs/checkJs；git rm app/prototype.js，1623 行原型文件归零，build 产物由 prototype-*.js 变为 app-*.js。顺手清理：prototype.js 残留死代码 updateHistoryTools（引用 2.6 已搬走的 history 变量、无调用方，2.8 发现）未随迁 app.ts，2.12 对应清理项提前完成。必要偏差（组装层 TS 化暴露的既有类型谎言）：txt/flows.ts 的 Context.state 原为手写窄类型（book: number、page: string 等，与实际传入的 AppState 不符），改为 state: AppState；TXT 导入的章节在 push 时直接生成 crypto.randomUUID（原由 autosave 保存时补，同为随机 UUID，最终对象一致，与 2.5 new-chapter 同理）；导入后的 page 赋值按 select 的两个值收窄为 'reader' | 'chapters'。类型化代价：click 分发的 target 加 HTMLElement 泛型、dataset.action 经局部常量窄化；空闲压缩把 b.image 固定到局部常量再进闭包（属性窄化不跨闭包）。typecheck 0 错、95 用例通过、build 通过）
 - [x] 2.12 清理（删除 app/domain/types.ts，history.ts 改用 schema 的 Chapter：EditableChapter = Pick<Chapter, 'id' | 'name' | 'body'>，id 从可选变必填与运行时事实一致——编辑器渲染时已补 id；CLAUDE.md 原本没有目录说明，按拆分后的实际结构新增"目录结构（第 2 批拆分后）"一节：main/app、core、kit/ui、pages、features、ui、data；未用变量的清理项在 2.5（returnFocus）与 2.11（prototype.js 死代码 updateHistoryTools 未随迁）已顺带完成，domain 目录随 types.ts 删除而消失。typecheck 0 错、95 用例通过、build 通过）
-- [x] 2.11 组装入口，删除 prototype.js　- [x] 2.12 清理　- [ ] 2.13 本批收尾
+- [x] 2.13 本批收尾（完成标准逐项核验：app/prototype.js 已不存在；typecheck 0 错误；95 用例全部通过；npm run build 通过。方案要求的"浏览器手动走一遍"以临时冒烟探针执行：书架编辑/阅读双标签 → 书架菜单打开完整备份弹层 → 章节 → 编辑正文并等待自动保存（.save-status 已保存）→ 阅读页点按呼出控制栏 → 返回 → 我的页关于弹层 → 回书架，全程 console/pageerror 无任何报错，探针已删。本批未改任何测试文件（import 路径无变化）。无远端仓库，按约定改在本机执行合并：batch-2-split → main。第 2 批共 13 个任务、10 个提交，prototype.js 1623 行全部拆入 TypeScript 模块，动作总数 80 个经脚本核验自始至终不变）
+- [x] 2.11 组装入口，删除 prototype.js　- [x] 2.12 清理　- [x] 2.13 本批收尾
 
 ## 第 3 批
 - [ ] 3.1 设计变量与样式重写　- [ ] 3.2 图标　- [ ] 3.3 封面　- [ ] 3.4 通用控件
