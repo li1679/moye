@@ -39,7 +39,7 @@ async function start() {
     }
   }, 300);
   try {
-    await import('./prototype.js');
+    await import('./app');
     clearTimeout(bootTimer);
   } catch (error) {
     console.error('启动失败', error);

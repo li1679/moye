@@ -1,15 +1,15 @@
 import { renderIcons as icons } from './ui/icons';
-import { createSheets } from './ui/sheets';
+import { createSheets, type SheetOptions } from './ui/sheets';
 import { persistState } from './data/autosave';
 import { createTxtFlows } from './features/txt/flows';
 import { createBackupFlows } from './features/backup/flows';
 import { compressCover } from './features/covers';
 import { createSettings } from './ui/settings';
-import { createInitialState } from './core/state';
+import { createInitialState, type AppState } from './core/state';
 import { icon, ib } from './kit/ui';
 import { $, esc } from './core/dom';
 import { toast, runNoticeAction } from './core/toast';
-import { createCtx } from './core/context';
+import { createCtx, type ActionHandler } from './core/context';
 import { registerActions, createDispatcher } from './core/actions';
 import { createRouter } from './core/router';
 import { createShelfPage } from './pages/shelf';
@@ -24,12 +24,15 @@ import { createSearchUi } from './features/search/search-ui';
 import { createForms } from './ui/forms';
 import { installNativeHandlers } from './features/native/android';
 
+// 组装入口（2.11 从 prototype.js 迁来）：创建 state 与 ctx，装配各页面模块并合并动作表，
+// 安装全局监听，最后做首次渲染。
+
 /* UI state hydrated from the platform's local database before first render. */
-const state = await persistState(createInitialState());
+const state: AppState = await persistState(createInitialState());
 const settingsModule = createSettings({ state, openSheet, icon });
 const { syncPreferenceControls } = settingsModule;
-const app = $("#app"),
-  sheet = $("#sheet");
+const app = $('#app');
+const sheet = $<HTMLDialogElement>('#sheet');
 const book = () => bookOf(state);
 const txtFlows = createTxtFlows({ state, openSheet, closeSheet, render: () => render(), toast });
 const backupFlows = createBackupFlows({ state, openSheet, prepare: () => ctx.dispose() });
@@ -39,7 +42,7 @@ const panels = createSheets(sheet, { escape: esc, button: ib, icons, restored() 
   if (gridStatus) gridStatus.textContent = state.prefs.grid ? '已开启' : '已关闭';
   syncPreferenceControls();
 } });
-function openSheet(title, body, options = {}) { panels.open(title, body, options); }
+function openSheet(title: string, body: string, options: SheetOptions = {}) { panels.open(title, body, options); }
 function closeSheet() { panels.close(); }
 function backSheet() { panels.back(); }
 const ctx = createCtx({
@@ -64,7 +67,7 @@ document.addEventListener('keydown', event => {
   event.preventDefault();
   sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
 }, true);
-sheet.addEventListener("click", (e) => {
+sheet.addEventListener('click', (e) => {
   if (e.target === sheet) {
     const r = sheet.getBoundingClientRect();
     if (e.clientY < r.top || e.clientX < r.left || e.clientX > r.right)
@@ -72,7 +75,7 @@ sheet.addEventListener("click", (e) => {
   }
 });
 function prepareRender() {
-  if (state.page !== "editor") editorPage.resetHistory();
+  if (state.page !== 'editor') editorPage.resetHistory();
 }
 const searchUi = createSearchUi(ctx);
 registerActions(searchUi);
@@ -102,8 +105,21 @@ ctx.editor = editorPage.editor;
 ctx.reader = readerPage.reader;
 const directoryModule = createDirectory(ctx);
 registerActions(directoryModule);
+// 组装层自己的三个动作：关闭弹层、提示条按钮、弹层返回。
+const handlers: Record<string, ActionHandler> = {
+  close() {
+    closeSheet();
+  },
+  'notice-action'() {
+    runNoticeAction();
+  },
+  'sheet-back'() {
+    sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
+  },
+};
+registerActions({ actions: handlers });
 function renderHome() {
-  if (state.tab === "me") mePage.render?.();
+  if (state.tab === 'me') mePage.render?.();
   else shelfPage.render?.();
 }
 const router = createRouter(ctx, {
@@ -116,33 +132,15 @@ const router = createRouter(ctx, {
 });
 ctx.render = router.render;
 const render = () => ctx.render();
-function updateHistoryTools() {
-  if (state.page !== 'editor' || state.layout || !chapter()) return;
-  for (const direction of ['undo', 'redo']) {
-    document.querySelectorAll('.editor [data-action="tool:' + direction + '"]').forEach(button => {
-      button.disabled = !history.canApply(chapter(), direction);
-    });
-  }
-}
-const handlers = {
-  close() {
-    closeSheet();
-  },
-  'notice-action'() {
-    runNoticeAction();
-  },
-  'sheet-back'() {
-    sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
-  },
-};
-registerActions({ actions: handlers });
 const dispatch = createDispatcher(ctx);
 ctx.action = dispatch;
-document.addEventListener("click", (e) => {
-  if (e.target.closest(".drag-handle")) return;
-  const target = e.target.closest("[data-action]");
-  if (target) {
-    dispatch(target.dataset.action).catch(error => {
+document.addEventListener('click', (e) => {
+  if (!(e.target instanceof Element)) return;
+  if (e.target.closest('.drag-handle')) return;
+  const target = e.target.closest<HTMLElement>('[data-action]');
+  const action = target?.dataset.action;
+  if (action) {
+    dispatch(action).catch(error => {
       console.error('操作未完成', error);
       toast(error instanceof Error ? error.message : String(error));
     });
@@ -157,16 +155,18 @@ const compressIdleCovers = () => {
   const queue = state.books.filter((b) => (b.image?.length ?? 0) > 300_000).slice();
   const step = () => {
     const b = queue.shift();
-    if (!b) return;
+    if (!b?.image) return;
+    // 属性窄化不会带进闭包，先把封面字符串固定到局部常量。
+    const image = b.image;
     void (async () => {
       try {
-        const compressed = await compressCover(await (await fetch(b.image)).blob());
-        if (compressed.length < b.image.length) b.image = compressed;
+        const compressed = await compressCover(await (await fetch(image)).blob());
+        if (compressed.length < image.length) b.image = compressed;
       } catch { /* 无法读取的封面保持原样 */ }
       step();
     })();
   };
   step();
 };
-if (typeof requestIdleCallback === "function") requestIdleCallback(compressIdleCovers);
+if (typeof requestIdleCallback === 'function') requestIdleCallback(compressIdleCovers);
 else setTimeout(compressIdleCovers, 1500);

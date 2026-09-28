@@ -6,9 +6,7 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": false
+    "skipLibCheck": true
   },
   "include": ["app/**/*.ts", "vite.config.ts", "capacitor.config.ts"]
 }

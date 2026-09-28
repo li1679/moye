@@ -2,10 +2,12 @@ import { saveNow } from '../../data/autosave';
 import { nextLibraryOrder } from '../../data/schema';
 import { saveTextFile } from './files';
 import { exportText, txtFilename, type ParsedText, type ChapterText } from './text';
+import type { AppState } from '../../core/state';
 
 type Book = { id: number; name: string; author: string; chapters: ChapterText[]; sourceHash?: string; group: number | null; libraryOrder?: number };
 type Context = {
-  state: { books: Book[]; groups: { id: number; name: string; libraryOrder?: number }[]; book: number; chapter: number; page: string; tab: string; folder: number | null; readerControls: boolean };
+  // 组装层传的是完整的 AppState；page/book 等键由导入流程自己赋值。
+  state: AppState;
   openSheet: (title: string, body: string) => void;
   closeSheet: () => void;
   render: () => void;
@@ -120,10 +122,12 @@ export function createTxtFlows(context: Context) {
       confirm.textContent = '正在保存…';
       let id = Date.now();
       while (state.books.some(book => book.id === id)) id++;
-      const imported: Book = {
+      const imported = {
         id, name, author: find<HTMLInputElement>('#txt-author').value.trim(), group: null,
         libraryOrder: nextLibraryOrder(context.state, null),
-        chapters: parsed.chapters, sourceHash: parsed.hash,
+        // schema 的 Chapter.id 必填；原来由 autosave 在保存时补，这里直接生成（同样是随机 UUID，行为一致）。
+        chapters: parsed.chapters.map(chapter => ({ ...chapter, id: crypto.randomUUID() })),
+        sourceHash: parsed.hash,
       };
       state.books.push(imported);
       try {
@@ -135,7 +139,7 @@ export function createTxtFlows(context: Context) {
         state.chapter = 0;
         state.folder = null;
         state.tab = destination === 'reader' ? 'read' : 'edit';
-        state.page = destination;
+        state.page = destination === 'reader' ? 'reader' : 'chapters';
         state.readerControls = false;
         render();
         toast('已导入并保存');
