@@ -24,13 +24,13 @@ import { createMePage } from './pages/me';
 import { createChaptersPage } from './pages/chapters';
 import { book as bookOf, chapter as chapterOf } from './core/library';
 import { createEditorPage } from './pages/editor';
+import { createReaderPage } from './pages/reader';
 import { createDirectory } from './features/directory';
-import { applyAppearance } from './features/appearance';
 
 /* UI state hydrated from the platform's local database before first render. */
 const state = await persistState(createInitialState());
 const settingsModule = createSettings({ state, openSheet, icon });
-const { settings, gridSettings, readerSettings, syncPreferenceControls } = settingsModule;
+const { syncPreferenceControls } = settingsModule;
 const app = $("#app"),
   sheet = $("#sheet");
 const book = () => bookOf(state);
@@ -83,18 +83,20 @@ registerActions(shelfPage);
 registerActions(mePage);
 const editorPage = createEditorPage(ctx, {
   renderLayout,
-  nightLabel,
   search,
   searchHit: () => selectedMatch || currentHits[0],
   afterReplace: () => { selectedMatch = null; searchPage = 0; searchResults(); },
 });
+const readerPage = createReaderPage(ctx);
 const chaptersPage = createChaptersPage(ctx, { confirmSheet, applyFormat: editorPage.applyFormat });
 registerActions(chaptersPage);
 chaptersPage.install?.();
 registerActions(editorPage);
 editorPage.install?.();
+registerActions(readerPage);
+readerPage.install?.();
 ctx.editor = editorPage.editor;
-ctx.reader = editorPage.reader;
+ctx.reader = readerPage.reader;
 const directoryModule = createDirectory(ctx);
 registerActions(directoryModule);
 function renderHome() {
@@ -103,6 +105,7 @@ function renderHome() {
 }
 const router = createRouter(ctx, {
   editor: () => editorPage.render?.(),
+  reader: () => readerPage.render?.(),
   chapters: () => chaptersPage.render?.(),
   home: renderHome,
   prepare: prepareRender,
@@ -260,12 +263,6 @@ function searchResults() {
     }
   }, 160);
 }
-function nightLabel() {
-  return (state.readPrefs.night ?? state.readPrefs.paper === "#202123")
-    ? `${icon("sun")}日间`
-    : `${icon("moon")}夜间`;
-}
-
 function openSearch(_arg, _arg2, _arg3, raw) {
   const kind = raw.split(':')[0];
   search(
@@ -356,41 +353,10 @@ const handlers = {
     closeSheet();
     ctx.render();
   },
-  'reader-settings'() {
-    readerSettings();
-  },
-  night() {
-    const p = state.readPrefs;
-    const dark = p.night ?? p.paper === '#202123';
-    const themes = p.themes || { day: { paper: '#ffffff', color: '#292d30' }, night: { paper: '#202123', color: '#dedede' } };
-    themes[dark ? 'night' : 'day'] = { paper: p.paper, color: p.color };
-    p.themes = themes;
-    p.night = !dark;
-    Object.assign(p, themes[dark ? 'day' : 'night']);
-    applyAppearance(ctx);
-    $('[data-action="night"]').innerHTML = nightLabel();
-    icons();
-  },
-  'reader-step'(arg) {
-    const target = state.chapter + Number(arg);
-    if (target < 0 || target >= book().chapters.length) return;
-    ctx.reader.session()?.jump(target);
-  },
 };
 registerActions({ actions: handlers });
 const dispatch = createDispatcher(ctx);
 ctx.action = dispatch;
-let readingPointer = null;
-document.addEventListener('pointerdown', event => {
-  readingPointer = event.target.closest('[data-reader]') ? { x: event.clientX, y: event.clientY, time: performance.now(), scroll: $('.editor-scroll').scrollTop } : null;
-}, { passive: true });
-function isReadingTap(event) {
-  if (!readingPointer || performance.now() - readingPointer.time > 500 || Math.hypot(event.clientX - readingPointer.x, event.clientY - readingPointer.y) > 10) return false;
-  const scroll = $('.editor-scroll');
-  if (Math.abs(scroll.scrollTop - readingPointer.scroll) > 5 || !getSelection()?.isCollapsed) return false;
-  const rect = scroll.getBoundingClientRect();
-  return event.clientY > rect.top + rect.height * .2 && event.clientY < rect.bottom - rect.height * .2;
-}
 document.addEventListener("click", (e) => {
   if (e.target.closest(".drag-handle")) return;
   const target = e.target.closest("[data-action]");
@@ -399,11 +365,6 @@ document.addEventListener("click", (e) => {
       console.error('操作未完成', error);
       toast(error instanceof Error ? error.message : String(error));
     });
-    return;
-  }
-  if (state.page === "reader" && e.target.closest("[data-reader]") && isReadingTap(e)) {
-    state.readerControls = !state.readerControls;
-    $(".reader").classList.toggle("controls", state.readerControls);
   }
 });
 document.addEventListener("input", (e) => {
@@ -412,13 +373,6 @@ document.addEventListener("input", (e) => {
     searchPage = 0;
     selectedMatch = null;
     searchResults();
-  }
-  if (el.dataset.readerPref) {
-    state.readPrefs[el.dataset.readerPref] = Number(el.value);
-    $(".reader").style.filter = `brightness(${el.value}%)`;
-  }
-  if (el.matches(".reader-progress input")) {
-    ctx.reader.session()?.jump(state.chapter, Number(el.value));
   }
 });
 document.addEventListener("change", async (e) => {

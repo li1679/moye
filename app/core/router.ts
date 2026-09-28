@@ -3,7 +3,8 @@ import type { Ctx } from './context';
 import { currentBookUndo, clearBookUndo } from '../features/editor/book-undo';
 
 export type RouterPages = {
-  editor(): void;    // 编辑页和阅读页（含布局模式）
+  editor(): void;    // 编辑页（含布局模式）
+  reader(): void;    // 阅读页
   chapters(): void;  // 章节列表页
   home(): void;      // 书架和"我的"
   prepare(): void;    // 每次渲染前的准备：编辑历史与拖拽排序实例的清理
@@ -70,7 +71,9 @@ export function createRouter(ctx: Ctx, pages: RouterPages) {
     ctx.dispose();
     pages.prepare();
     if (state.page === 'editor' || state.page === 'reader') {
-      pages.editor();
+      // 布局模式暂由编辑页渲染（2.8 移入 pages/layout.ts）。
+      if (state.page === 'reader' && !state.layout) pages.reader();
+      else pages.editor();
       return;
     }
     document.documentElement.style.removeProperty('--paper');

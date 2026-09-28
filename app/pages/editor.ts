@@ -9,18 +9,17 @@ import { extractInputEdit, type InputEdit } from '../features/editor/input-sessi
 import { createWordCountClient, type WordCountClient } from '../features/editor/word-count';
 import { editorText } from '../features/editor/dom-text';
 import { captureAnchor, restoreAnchor, captureSelection, restoreSelection } from '../features/editor/positions';
-import { mountReader } from '../features/reader/continuous';
 import { rememberBookChange } from '../features/editor/book-undo';
 import { saveNow } from '../data/autosave';
 import { applyAppearance } from '../features/appearance';
 import { openDirectory } from '../features/directory';
 import { needBook, needChapter } from '../core/library';
 import type { Chapter, Prefs, ReadPrefs, ToolId } from '../data/schema';
-import type { ActionHandler, Ctx, PageModule, ReaderSession } from '../core/context';
+import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
-// 2.7～2.9 搬走的部分由组装入口注入：阅读分支的夜间标签、布局渲染、搜索面板。
+// 2.8～2.9 搬走的部分由组装入口注入：布局渲染、搜索面板。
 export type EditorHelpers = {
-  nightLabel(): string;
+  renderLayout(): void;
   renderLayout(): void;
   search(scope?: string, replace?: boolean): void;
   searchHit(): { chapterId: string; offset: number } | null;
@@ -29,7 +28,6 @@ export type EditorHelpers = {
 
 export type EditorModule = PageModule & {
   editor: Ctx['editor'];
-  reader: Ctx['reader'];
   resetHistory(id?: string | null): void;
   applyFormat(all?: boolean): Promise<void>;
 };
@@ -54,7 +52,6 @@ function isLineType(value: string): value is Prefs['lineType'] {
   const history = new ChapterHistory();
   let historyChapterId: string | null = null;
   let composition: Composition | null = null;
-  let readerSession: ReaderSession | null = null;
   let disposeEditor: (() => void) | null = null;
   let pendingInput: PendingInput | null = null;
   let wordCountClient: WordCountClient | null = null;
@@ -114,7 +111,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
   }
 
   function locateText(offset: number, length = 0, selector = '.manuscript') {
-    const element = state.page === 'reader' && selector === '.manuscript' ? readerSession?.body() : $(selector);
+    const element = state.page === 'reader' && selector === '.manuscript' ? ctx.reader.session()?.body() : $(selector);
     if (!element?.firstChild) return;
     // 渲染或命令之后调用；编辑器正文只有一个文本节点。
     const node = element.firstChild;
@@ -181,75 +178,53 @@ function isLineType(value: string): value is Prefs['lineType'] {
       return;
     }
     const c = ctx.chapter();
-    const reader = state.page === "reader";
     if (!c) {
-      if (reader) {
-        ctx.app.innerHTML = `<main class="app-shell editor reader"><header class="topbar">${ib("chevron-left", "返回阅读书架", "home")}<div class="title">${esc(ctx.book()?.name)}</div></header><div class="empty">暂无章节</div></main>`;
-        icons();
-        return;
-      }
       state.page = "chapters";
       ctx.render();
       return;
     }
-    const b = needBook(state);
-    if (!reader) resetHistory(c.id ??= crypto.randomUUID());
-    ctx.app.innerHTML = `<main class="app-shell editor ${reader ? "reader " + (state.readerControls ? "controls" : "") : ""}">${reader ? `<header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header>` : `<header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header>`}<section class="editor-scroll" ${reader ? 'data-reader="true"' : ""}>${reader ? `<div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div>` : '<span class="word-count">本章字数 <span id="word-value">' + wordsOf(c) + "</span></span>"}<h1 class="editor-heading" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节标题"'}>${esc(c.name)}</h1><div class="manuscript" ${reader ? "" : 'contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true"'} data-placeholder="${reader ? "本章暂无正文" : "请输入正文"}">${esc(c.body)}</div></section>${reader ? `<div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${helpers.nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer>` : `<footer class="editor-bottom">${toolbar("bottom")}</footer>`}</main>`;
+    resetHistory(c.id ??= crypto.randomUUID());
+    ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count">本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
     icons();
     applyAppearance(ctx);
     updateHistoryTools();
     $(".manuscript").textContent = c.body;
-    if (!reader) $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
+    $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
     const scroll = $(".editor-scroll");
-    if (!reader) {
-      c.id ??= crypto.randomUUID();
-      const body = $(".manuscript"), title = $(".editor-heading");
-      const previous = state.editing[c.id];
-      scroll.scrollTop = previous?.scroll || 0;
-      if (previous?.anchor) restoreAnchor(body, scroll, previous.anchor);
-      let position = previous?.selection;
-      if (position) restoreSelection(position.field === 'name' ? title : body, position);
-      const capture = () => {
-        const selected = captureSelection(body, 'body') || captureSelection(title, 'name');
-        if (selected) position = { start: selected.start, end: selected.end, backward: selected.backward, field: selected.field === 'name' ? 'name' : 'body' };
-        state.editing[c.id] = {
-          scroll: scroll.scrollTop, selection: position,
-          anchor: body.firstChild?.nodeType === Node.TEXT_NODE && body.childNodes.length === 1 ? captureAnchor(body, scroll) : undefined,
-        };
+    c.id ??= crypto.randomUUID();
+    const body = $(".manuscript"), title = $(".editor-heading");
+    const previous = state.editing[c.id];
+    scroll.scrollTop = previous?.scroll || 0;
+    if (previous?.anchor) restoreAnchor(body, scroll, previous.anchor);
+    let position = previous?.selection;
+    if (position) restoreSelection(position.field === 'name' ? title : body, position);
+    const capture = () => {
+      const selected = captureSelection(body, 'body') || captureSelection(title, 'name');
+      if (selected) position = { start: selected.start, end: selected.end, backward: selected.backward, field: selected.field === 'name' ? 'name' : 'body' };
+      state.editing[c.id] = {
+        scroll: scroll.scrollTop, selection: position,
+        anchor: body.firstChild?.nodeType === Node.TEXT_NODE && body.childNodes.length === 1 ? captureAnchor(body, scroll) : undefined,
       };
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const schedule = () => { clearTimeout(timer); timer = setTimeout(capture, 150); };
-      scroll.addEventListener('scroll', schedule, { passive: true });
-      document.addEventListener('selectionchange', schedule);
-      document.addEventListener('visibilitychange', capture);
-      disposeEditor = () => {
-        capture(); clearTimeout(timer);
-        scroll.removeEventListener('scroll', schedule);
-        document.removeEventListener('selectionchange', schedule);
-        document.removeEventListener('visibilitychange', capture);
-      };
-      ctx.onDispose(() => {
-        pendingInput = null;
-        clearTimeout(wordCountTimer);
-        wordCountRevision++;
-        wordCountClient?.dispose();
-        wordCountClient = null;
-      });
-      ctx.onDispose(() => { disposeEditor?.(); disposeEditor = null; });
-    } else {
-      b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
-      readerSession = mountReader(scroll, b.chapters, state.chapter, state.reading[b.id], (position, progress) => {
-        state.chapter = position.chapter;
-        state.reading[b.id] = position;
-        $('#progress-value').textContent = progress + '%';
-        $<HTMLInputElement>('.reader-progress input').value = String(progress);
-        $('.reader-footer span').textContent = b.chapters[position.chapter].name;
-        $<HTMLButtonElement>('[data-action="reader-step:-1"]').disabled = position.chapter === 0;
-        $<HTMLButtonElement>('[data-action="reader-step:1"]').disabled = position.chapter === b.chapters.length - 1;
-      }, ctx.toast);
-      ctx.onDispose(() => { readerSession?.destroy(); readerSession = null; });
-      applyAppearance(ctx);
-    }
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const schedule = () => { clearTimeout(timer); timer = setTimeout(capture, 150); };
+    scroll.addEventListener('scroll', schedule, { passive: true });
+    document.addEventListener('selectionchange', schedule);
+    document.addEventListener('visibilitychange', capture);
+    disposeEditor = () => {
+      capture(); clearTimeout(timer);
+      scroll.removeEventListener('scroll', schedule);
+      document.removeEventListener('selectionchange', schedule);
+      document.removeEventListener('visibilitychange', capture);
+    };
+    ctx.onDispose(() => {
+      pendingInput = null;
+      clearTimeout(wordCountTimer);
+      wordCountRevision++;
+      wordCountClient?.dispose();
+      wordCountClient = null;
+    });
+    ctx.onDispose(() => { disposeEditor?.(); disposeEditor = null; });
   }
 
   // 编辑器的输入监听：组合输入、快捷键撤销、输入历史与字数、偏好开关。
@@ -509,7 +484,6 @@ function isLineType(value: string): value is Prefs['lineType'] {
     render,
     install,
     editor: { commitBody, locateText },
-    reader: { session: () => readerSession },
     resetHistory,
     applyFormat,
   };
