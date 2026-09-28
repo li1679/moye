@@ -4,12 +4,10 @@ import { createSheets } from './ui/sheets';
 import { persistState, saveNow } from './data/autosave';
 import { nextLibraryOrder } from './data/schema';
 import { createTxtFlows } from './features/txt/flows';
-import { bookWords } from './features/editor/text-tools';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { App } from '@capacitor/app';
 import { createBackupFlows } from './features/backup/flows';
-import { SearchClient } from './features/editor/search-client';
 import { compressCover } from './features/covers';
 import { createSettings } from './ui/settings';
 import { createInitialState } from './core/state';
@@ -27,6 +25,7 @@ import { createEditorPage } from './pages/editor';
 import { createReaderPage } from './pages/reader';
 import { createLayoutPage } from './pages/layout';
 import { createDirectory } from './features/directory';
+import { createSearchUi } from './features/search/search-ui';
 
 /* UI state hydrated from the platform's local database before first render. */
 const state = await persistState(createInitialState());
@@ -78,14 +77,17 @@ sheet.addEventListener("click", (e) => {
 function prepareRender() {
   if (state.page !== "editor") editorPage.resetHistory();
 }
-const shelfPage = createShelfPage(ctx, { bookForm, inputForm, confirmSheet, searchBooks });
+const searchUi = createSearchUi(ctx);
+registerActions(searchUi);
+searchUi.install?.();
+const shelfPage = createShelfPage(ctx, { bookForm, inputForm, confirmSheet, searchBooks: searchUi.searchBooks });
 const mePage = createMePage(ctx);
 registerActions(shelfPage);
 registerActions(mePage);
 const editorPage = createEditorPage(ctx, {
-  search,
-  searchHit: () => selectedMatch || currentHits[0],
-  afterReplace: () => { selectedMatch = null; searchPage = 0; searchResults(); },
+  search: searchUi.search,
+  searchHit: searchUi.searchHit,
+  afterReplace: searchUi.afterReplace,
 });
 const readerPage = createReaderPage(ctx);
 const layoutPage = createLayoutPage(ctx);
@@ -144,111 +146,6 @@ function confirmSheet(title, message, action) {
     `<p class="hint">${esc(message)}</p><div class="sheet-actions"><button class="text-action" data-action="sheet-back">取消</button><button class="primary danger" data-action="${action}">确认删除</button></div>`,
   );
 }
-function search(scope = "book", replace = false) {
-  searchPage = 0;
-  selectedMatch = null;
-  openSheet(
-    replace
-      ? "查找替换"
-      : scope === "global"
-        ? "全部书籍搜索"
-        : scope === "chapter"
-          ? "本章搜索"
-          : "本书搜索",
-    `<div class="search-input">${icon("search")}<input id="query" aria-label="搜索文本" placeholder="查找指定文本" data-scope="${scope}"></div>${replace ? '<label class="form-field"><span>替换为</span><input id="replacement" placeholder="留空即删除匹配文字"></label><p class="hint">点击结果选择替换位置；未选择时替换第一处。</p><div class="search-actions"><button class="text-action" data-action="replace-one">替换这一处</button><button class="text-action" data-action="replace">替换本章全部</button></div>' : ""}<div id="search-results"><div class="empty">输入要查找的文字</div></div>`,
-  );
-  if (replace) {
-    const label = document.createElement('label');
-    label.className = 'row';
-    label.innerHTML = '<span>查找替换范围</span><select aria-label="替换范围"><option value="chapter">当前章</option><option value="book">整本书</option></select>';
-    $('.sheet-content', sheet).prepend(label);
-    label.querySelector('select').onchange = event => {
-      $('#query').dataset.scope = event.target.value;
-      $('[data-action="replace"]').textContent = event.target.value === 'book' ? '预览全书替换' : '替换本章全部';
-      searchPage = 0;
-      selectedMatch = null;
-      searchResults();
-    };
-  }
-}
-function searchBooks() {
-  openSheet(
-    "搜索书籍",
-    `<div class="search-input">${icon("search")}<input id="query" aria-label="书籍名称" placeholder="输入书名" data-scope="titles"></div><div id="search-results"><div class="empty">输入要查找的书名</div></div>`,
-  );
-}
-let searchPage = 0, searchRevision = 0, searchTimer;
-const searchClient = new SearchClient();
-let currentHits = [], selectedMatch = null;
-sheet.addEventListener('close', () => {
-  searchRevision++;
-  clearTimeout(searchTimer);
-  searchClient.dispose();
-});
-function searchResults() {
-  clearTimeout(searchTimer);
-  searchClient.cancel();
-  const revision = ++searchRevision;
-  const q = $("#query").value;
-  const scope = $("#query").dataset.scope;
-  if (scope === "titles") {
-    const matches = q.trim()
-      ? state.books.filter((b) =>
-          b.name.toLocaleLowerCase().includes(q.trim().toLocaleLowerCase()),
-        )
-      : [];
-    $("#search-results").innerHTML = !q.trim()
-      ? '<div class="empty">输入要查找的书名</div>'
-      : matches.length
-        ? matches
-            .map(
-              (b) =>
-                `<button class="result" data-action="found-book:${b.id}"><strong>${esc(b.name)}</strong><small>${esc(b.author || "未署名")} · ${b.chapters.length} 章 · ${bookWords(b)} 字</small></button>`,
-            )
-            .join("")
-        : '<div class="empty">没有找到这本书</div>';
-    return;
-  }
-  if (!q) {
-    $("#search-results").innerHTML =
-      '<div class="empty">输入要查找的文字</div>';
-    return;
-  }
-  $("#search-results").textContent = '正在查找…';
-  currentHits = [];
-  searchTimer = setTimeout(async () => {
-    const documents = [];
-    for (const b of scope === 'global' ? state.books : [book()]) {
-      b.chapters.forEach((c, i) => {
-        if (scope === 'chapter' && i !== state.chapter) return;
-        c.id ??= crypto.randomUUID();
-        documents.push({ bookId: b.id, chapterId: c.id, title: c.name, bookName: b.name, body: c.body });
-      });
-    }
-    try {
-      const { hits, total } = await searchClient.search(documents, q, searchPage);
-      if (revision !== searchRevision || !$("#search-results")) return;
-      currentHits = hits;
-      $("#search-results").innerHTML = total
-        ? `<p class="hint">共 ${total} 处匹配 · 第 ${searchPage + 1} / ${Math.ceil(total / 50)} 页</p>` +
-          hits.map((hit, index) => `<button class="result" data-action="match-hit:${index}" ${$("#replacement") ? 'aria-pressed="false"' : ''}><strong>${esc(hit.title)}</strong><small>${esc(hit.bookName)}</small><p>${esc(hit.before)}<mark>${esc(hit.match)}</mark>${esc(hit.after)}</p></button>`).join('') +
-          `<div class="search-actions"><button class="text-action" data-action="search-page:-1" ${searchPage === 0 ? 'disabled' : ''}>上一页</button><button class="text-action" data-action="search-page:1" ${(searchPage + 1) * 50 >= total ? 'disabled' : ''}>下一页</button></div>`
-        : '<div class="empty">没有找到匹配内容</div>';
-    } catch (error) {
-      if (revision === searchRevision && $("#search-results") && error.name !== 'AbortError') $("#search-results").textContent = '搜索失败：' + error.message;
-    }
-  }, 160);
-}
-function openSearch(_arg, _arg2, _arg3, raw) {
-  const kind = raw.split(':')[0];
-  search(
-    kind === "global-search"
-      ? "global"
-      : kind === "chapter-search"
-        ? "chapter"
-        : "book",
-  );
-}
 const handlers = {
   close() {
     closeSheet();
@@ -258,37 +155,6 @@ const handlers = {
   },
   'sheet-back'() {
     sheet.dispatchEvent(new Event('cancel', { cancelable: true }));
-  },
-  'global-search': openSearch,
-  'book-search': openSearch,
-  'chapter-search': openSearch,
-  'search-page'(arg) {
-    searchPage = Math.max(0, searchPage + Number(arg));
-    selectedMatch = null;
-    searchResults();
-  },
-  'match-hit'(arg) {
-    const hit = currentHits[Number(arg)];
-    if (!hit) return;
-    if ($("#replacement")) {
-      selectedMatch = hit;
-      sheet.querySelectorAll('.result').forEach(element => element.setAttribute('aria-pressed', String(element.dataset.action === 'match-hit:' + arg)));
-      return;
-    }
-    const targetBook = state.books.find(b => b.id === hit.bookId);
-    const index = targetBook?.chapters.findIndex(c => c.id === hit.chapterId);
-    if (index === undefined || index < 0 || targetBook.chapters[index].body.slice(hit.offset, hit.offset + hit.match.length) !== hit.match) {
-      toast('匹配内容已变化，请重新搜索');
-      searchResults();
-      return;
-    }
-    state.book = hit.bookId;
-    state.chapter = index;
-    state.page = state.tab === "read" ? "reader" : "editor";
-    if (state.page === 'reader') state.reading[state.book] = { chapter: index, chapterId: hit.chapterId, scroll: 0 };
-    closeSheet();
-    render();
-    requestAnimationFrame(() => ctx.editor.locateText(hit.offset, hit.match.length));
   },
 };
 registerActions({ actions: handlers });
@@ -302,14 +168,6 @@ document.addEventListener("click", (e) => {
       console.error('操作未完成', error);
       toast(error instanceof Error ? error.message : String(error));
     });
-  }
-});
-document.addEventListener("input", (e) => {
-  const el = e.target;
-  if (el.id === "query") {
-    searchPage = 0;
-    selectedMatch = null;
-    searchResults();
   }
 });
 document.addEventListener("change", async (e) => {
