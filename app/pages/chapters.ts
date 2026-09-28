@@ -10,7 +10,7 @@ import { updateChapters } from '../core/library';
 import type { Book } from '../data/schema';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
-// 一键排版在 2.6 搬进编辑器模块；在那之前由组装入口把 prototype.js 里的函数传进来。
+// 确认弹层（ui/forms.ts）与一键排版（编辑器模块）由组装入口注入。
 export type ChaptersHelpers = {
   confirmSheet(title: string, message: string, action: string): void;
   applyFormat(all?: boolean): Promise<void>;

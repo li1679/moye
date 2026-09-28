@@ -38,7 +38,7 @@
 - 目录跳到第 1001 章：944 → 1152 ms
 （scale 用例每次都以版本 1 数据冷启动，包含迁移写库开销；窗口化阅读在第 5 批解决大目录跳章）
 
-## 第 2 批（进行中；当前分支 batch-2-split，从合并后的 main 切出）
+## 第 2 批（已完成：95 个用例全部通过，typecheck 0 错误，npm run build 通过；分支 batch-2-split 已本地合并 main）
 - [x] 2.1 基础模块（app/core/dom.ts、app/core/state.ts、app/kit/ui.ts 已建立；prototype.js 的 $/esc/icon/ib/toolMenu 与初始状态改为从这些模块导入；ib 的动作名特殊处理已删，阅读器顶栏直接传"本书搜索"。95 个用例通过）
 - [x] 2.2 动作表（action() 的 if 链改为 handlers 映射 + dispatch()：共 80 个 kind 与原分支一一对应，多 kind 共用分支按方案用同一函数注册多次；"切换页面前先 dispose"的判断移入 dispatch；match-hit 中原对完整动作字符串的比较改写为 'match-hit:' + arg（生成格式不变，等价）；prototype.js 1598→1602 行。typecheck 0 错、95 用例通过、build 通过）
 - [x] 2.3 核心模块（新建 core/toast.ts、core/context.ts、core/actions.ts、core/router.ts：toast 与 notice-action 搬进 toast.ts；ctx 提供 state/dispose/onDispose/action/render 等附录 L 接口；动作表经 registerActions 注册、createDispatcher 分派，共用动作函数第 4 参数按附录 L 从 kind 改为 raw（内部 split 取 kind，行为不变）；router.render() 在前后各取一次快照做动画（删掉原 wrap IIFE），并保留原 render 的调度（bookUndo 清理、dispose、prepare、按页分派）；renderEditor/renderLayout/renderChapters 的 5 处外部调用与 layoutSettings 改为 ctx.render()；disposeReadingEditing 拆为编辑/阅读分支各自 ctx.onDispose 登记的钩子。typecheck 0 错、95 用例通过、build 通过）
@@ -52,7 +52,7 @@
 - [x] 2.8 页面布局　- [x] 2.9 搜索　- [x] 2.10 表单与原生监听
 - [x] 2.11 组装入口，删除 prototype.js（新建 app/app.ts：state/panels/ctx 组装、各页面模块创建与 registerActions、组装层自己的三个动作 close/notice-action/sheet-back、全局 click 分发监听、原生监听安装、首次渲染与空闲封面压缩；main.ts 改为 await import('./app')；tsconfig 删除 allowJs/checkJs；git rm app/prototype.js，1623 行原型文件归零，build 产物由 prototype-*.js 变为 app-*.js。顺手清理：prototype.js 残留死代码 updateHistoryTools（引用 2.6 已搬走的 history 变量、无调用方，2.8 发现）未随迁 app.ts，2.12 对应清理项提前完成。必要偏差（组装层 TS 化暴露的既有类型谎言）：txt/flows.ts 的 Context.state 原为手写窄类型（book: number、page: string 等，与实际传入的 AppState 不符），改为 state: AppState；TXT 导入的章节在 push 时直接生成 crypto.randomUUID（原由 autosave 保存时补，同为随机 UUID，最终对象一致，与 2.5 new-chapter 同理）；导入后的 page 赋值按 select 的两个值收窄为 'reader' | 'chapters'。类型化代价：click 分发的 target 加 HTMLElement 泛型、dataset.action 经局部常量窄化；空闲压缩把 b.image 固定到局部常量再进闭包（属性窄化不跨闭包）。typecheck 0 错、95 用例通过、build 通过）
 - [x] 2.12 清理（删除 app/domain/types.ts，history.ts 改用 schema 的 Chapter：EditableChapter = Pick<Chapter, 'id' | 'name' | 'body'>，id 从可选变必填与运行时事实一致——编辑器渲染时已补 id；CLAUDE.md 原本没有目录说明，按拆分后的实际结构新增"目录结构（第 2 批拆分后）"一节：main/app、core、kit/ui、pages、features、ui、data；未用变量的清理项在 2.5（returnFocus）与 2.11（prototype.js 死代码 updateHistoryTools 未随迁）已顺带完成，domain 目录随 types.ts 删除而消失。typecheck 0 错、95 用例通过、build 通过）
-- [x] 2.13 本批收尾（完成标准逐项核验：app/prototype.js 已不存在；typecheck 0 错误；95 用例全部通过；npm run build 通过。方案要求的"浏览器手动走一遍"以临时冒烟探针执行：书架编辑/阅读双标签 → 书架菜单打开完整备份弹层 → 章节 → 编辑正文并等待自动保存（.save-status 已保存）→ 阅读页点按呼出控制栏 → 返回 → 我的页关于弹层 → 回书架，全程 console/pageerror 无任何报错，探针已删。本批未改任何测试文件（import 路径无变化）。无远端仓库，按约定改在本机执行合并：batch-2-split → main。第 2 批共 13 个任务、10 个提交，prototype.js 1623 行全部拆入 TypeScript 模块，动作总数 80 个经脚本核验自始至终不变）
+- [x] 2.13 本批收尾（完成标准逐项核验：app/prototype.js 已不存在；typecheck 0 错误；95 用例全部通过；npm run build 通过。方案要求的"浏览器手动走一遍"以临时冒烟探针执行：书架编辑/阅读双标签 → 书架菜单打开完整备份弹层 → 章节 → 编辑正文并等待自动保存（.save-status 已保存）→ 阅读页点按呼出控制栏 → 返回 → 我的页关于弹层 → 回书架，全程 console/pageerror 无任何报错，探针已删。本批未改任何测试文件（import 路径无变化）。无远端仓库，按约定改在本机执行合并：batch-2-split → main。第 2 批共 13 个任务、14 个提交（含 2.1 的单独进度记录提交），prototype.js 1623 行全部拆入 TypeScript 模块，动作总数 80 个经脚本核验自始至终不变。合并后追加复查提交：修复 editor.ts 未用导入 icon/ReadPrefs、backup/model.ts 未用导入 snapshotLibrary（第 1 批遗留）、shelf.ts/chapters.ts 两处过时注释，并以 ef2852e 的 80 键为基准做动作集合端到端终检（PASS，无重复注册），临时 noUnusedLocals/noUnusedParameters 检查清零）
 - [x] 2.11 组装入口，删除 prototype.js　- [x] 2.12 清理　- [x] 2.13 本批收尾
 
 ## 第 3 批

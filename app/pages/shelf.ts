@@ -5,7 +5,7 @@ import { nextLibraryOrder } from '../data/schema';
 import { renderIcons as icons } from '../ui/icons';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
-// 表单和搜索面板 2.10/2.9 才搬家；在那之前由组装入口把 prototype.js 里的函数传进来。
+// 表单（ui/forms.ts）与书名搜索（features/search/search-ui.ts）由组装入口注入。
 export type ShelfHelpers = {
   bookForm(edit?: boolean): void;
   inputForm(title: string, label: string, action: string, value?: string): void;

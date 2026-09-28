@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { $, $$, esc } from '../core/dom';
-import { icon, ib, toolMenu, tools } from '../kit/ui';
+import { ib, toolMenu, tools } from '../kit/ui';
 import { renderIcons as icons } from '../ui/icons';
 import { ChapterHistory, type HistoryHint } from '../features/editor/history';
 import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
@@ -14,7 +14,7 @@ import { saveNow } from '../data/autosave';
 import { applyAppearance } from '../features/appearance';
 import { openDirectory } from '../features/directory';
 import { needBook, needChapter } from '../core/library';
-import type { Chapter, Prefs, ReadPrefs, ToolId } from '../data/schema';
+import type { Chapter, Prefs, ToolId } from '../data/schema';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
 // 2.9 搬走的部分由组装入口注入：搜索面板。
