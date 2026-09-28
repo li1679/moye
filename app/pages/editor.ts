@@ -17,10 +17,8 @@ import { needBook, needChapter } from '../core/library';
 import type { Chapter, Prefs, ReadPrefs, ToolId } from '../data/schema';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
-// 2.8～2.9 搬走的部分由组装入口注入：布局渲染、搜索面板。
+// 2.9 搬走的部分由组装入口注入：搜索面板。
 export type EditorHelpers = {
-  renderLayout(): void;
-  renderLayout(): void;
   search(scope?: string, replace?: boolean): void;
   searchHit(): { chapterId: string; offset: number } | null;
   afterReplace(): void;
@@ -173,10 +171,6 @@ function isLineType(value: string): value is Prefs['lineType'] {
 
   function render() {
     ctx.dispose();
-    if (state.layout) {
-      helpers.renderLayout();
-      return;
-    }
     const c = ctx.chapter();
     if (!c) {
       state.page = "chapters";

@@ -13,7 +13,7 @@ import { SearchClient } from './features/editor/search-client';
 import { compressCover } from './features/covers';
 import { createSettings } from './ui/settings';
 import { createInitialState } from './core/state';
-import { icon, ib, cover, tools } from './kit/ui';
+import { icon, ib, cover } from './kit/ui';
 import { $, esc } from './core/dom';
 import { toast, runNoticeAction } from './core/toast';
 import { createCtx } from './core/context';
@@ -25,6 +25,7 @@ import { createChaptersPage } from './pages/chapters';
 import { book as bookOf, chapter as chapterOf } from './core/library';
 import { createEditorPage } from './pages/editor';
 import { createReaderPage } from './pages/reader';
+import { createLayoutPage } from './pages/layout';
 import { createDirectory } from './features/directory';
 
 /* UI state hydrated from the platform's local database before first render. */
@@ -82,12 +83,12 @@ const mePage = createMePage(ctx);
 registerActions(shelfPage);
 registerActions(mePage);
 const editorPage = createEditorPage(ctx, {
-  renderLayout,
   search,
   searchHit: () => selectedMatch || currentHits[0],
   afterReplace: () => { selectedMatch = null; searchPage = 0; searchResults(); },
 });
 const readerPage = createReaderPage(ctx);
+const layoutPage = createLayoutPage(ctx);
 const chaptersPage = createChaptersPage(ctx, { confirmSheet, applyFormat: editorPage.applyFormat });
 registerActions(chaptersPage);
 chaptersPage.install?.();
@@ -95,6 +96,7 @@ registerActions(editorPage);
 editorPage.install?.();
 registerActions(readerPage);
 readerPage.install?.();
+registerActions(layoutPage);
 ctx.editor = editorPage.editor;
 ctx.reader = readerPage.reader;
 const directoryModule = createDirectory(ctx);
@@ -106,6 +108,7 @@ function renderHome() {
 const router = createRouter(ctx, {
   editor: () => editorPage.render?.(),
   reader: () => readerPage.render?.(),
+  layout: () => layoutPage.render?.(),
   chapters: () => chaptersPage.render?.(),
   home: renderHome,
   prepare: prepareRender,
@@ -119,33 +122,6 @@ function updateHistoryTools() {
       button.disabled = !history.canApply(chapter(), direction);
     });
   }
-}
-function layoutSettings() {
-  state.layoutScroll = $(".editor-scroll")?.scrollTop || 0;
-  state.layout = true;
-  closeSheet();
-  ctx.render();
-}
-function layoutToolbar(where) {
-  return `<div class="layout-slots" aria-label="${where === "top" ? "上方" : "下方"}工具栏">${state.toolbars[where].map((id, index) => `<div class="layout-slot">${ib(id ? tools[id][0] : "circle-plus", id ? `更换${tools[id][1]}` : `添加${where === "top" ? "上方" : "下方"}第${index + 1}个工具`, `slot:${where}:${index}`)}${id ? `<button class="slot-remove" aria-label="移除${tools[id][1]}" title="移除${tools[id][1]}" data-action="remove-tool:${where}:${index}">${icon("circle-minus")}</button>` : ""}</div>`).join("")}${ib("plus", "增加工具位置", `add-slot:${where}`)}</div>`;
-}
-function renderLayout() {
-  app.innerHTML = `<main class="app-shell editor layout-editor"><header class="layout-header">${ib("chevron-left", "完成布局", "finish-layout")}<span>页面布局</span><button class="text-action" data-action="reset-layout">重置</button><button class="text-action" data-action="finish-layout">完成</button></header><div class="layout-top">${layoutToolbar("top")}</div><div class="layout-blank" aria-label="正文预留区域"></div><div class="layout-bottom">${layoutToolbar("bottom")}</div></main>`;
-  icons();
-}
-function slotPicker(where, index) {
-  state.activeSlot = { where, index };
-  const current = state.toolbars[where][index];
-  openSheet(
-    "选择工具",
-    `<div class="tool-grid">${Object.entries(tools)
-      .map(
-        ([id, [i, n]]) =>
-          `<button class="tool-item ${current === id ? "chosen-tool" : ""}" data-action="choose-tool:${id}"><span class="tool-bubble">${icon(i)}</span><span>${n}</span>${current === id ? "<small>当前位置</small>" : ""}</button>`,
-      )
-      .join("")}</div>`,
-    { className: "tool-picker" },
-  );
 }
 let formImage = null;
 function bookForm(edit = false) {
@@ -313,45 +289,6 @@ const handlers = {
     closeSheet();
     render();
     requestAnimationFrame(() => ctx.editor.locateText(hit.offset, hit.match.length));
-  },
-  layout() {
-    layoutSettings();
-  },
-  'reset-layout'() {
-    state.toolbars = {
-      top: ["copy", "format", "undo", "redo", "directory", "settings"],
-      bottom: ["keyboard", "find", "top", "bottom", null, null],
-    };
-    closeSheet();
-    ctx.render();
-  },
-  'finish-layout'() {
-    state.layout = false;
-    closeSheet();
-    ctx.render();
-    $(".editor-scroll").scrollTop = state.layoutScroll;
-  },
-  slot(arg, arg2) {
-    slotPicker(arg, Number(arg2));
-  },
-  'remove-tool'(arg, arg2) {
-    state.toolbars[arg][Number(arg2)] = null;
-    ctx.render();
-  },
-  'add-slot'(arg) {
-    state.toolbars[arg].push(null);
-    ctx.render();
-    slotPicker(arg, state.toolbars[arg].length - 1);
-  },
-  'choose-tool'(arg) {
-    const { where, index } = state.activeSlot;
-    for (const side of ["top", "bottom"])
-      state.toolbars[side] = state.toolbars[side].map((id) =>
-        id === arg ? null : id,
-      );
-    state.toolbars[where][index] = arg;
-    closeSheet();
-    ctx.render();
   },
 };
 registerActions({ actions: handlers });
