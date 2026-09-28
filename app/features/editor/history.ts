@@ -1,6 +1,7 @@
-import type { EditableChapter } from '../../domain/types';
+import type { Chapter } from '../../data/schema';
 
-export type { EditableChapter } from '../../domain/types';
+/** 撤销历史只读写这三项；id 在编辑器渲染时已补齐。 */
+export type EditableChapter = Pick<Chapter, 'id' | 'name' | 'body'>;
 type Field = 'name' | 'body';
 type Edit = { field: Field; offset: number; before: string; after: string; sequence: number };
 type History = { undo: Edit[]; redo: Edit[] };
