@@ -340,7 +340,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
         applyAppearance(ctx);
       }
       if (el instanceof HTMLSelectElement && el.id === 'font-family') {
-        state.prefs.fontFamily = el.value === '宋体' ? '宋体' : '系统默认';
+        state.prefs.fontFamily = el.value === '宋体' || el.value === '黑体' ? el.value : '系统默认';
         applyAppearance(ctx);
       }
     });

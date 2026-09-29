@@ -28,7 +28,7 @@ export function createMePage(ctx: Ctx): PageModule {
     about() {
       ctx.openSheet(
         '关于',
-        `<div class="empty"><img src="/brand/moye.svg" alt="" width="72" height="72"><h2>墨页</h2><p class="hint">本地阅读，随心改文</p><p class="hint">支持自动保存、TXT 导入导出及完整备份。</p></div>`,
+        `<div class="empty"><img src="/brand/moye.svg" alt="" width="72" height="72"><h2>墨页 ${__APP_VERSION__}</h2><p class="hint">本地阅读，随心改文</p><p class="hint">所有数据只保存在本机，不联网。</p></div>`,
       );
     },
   };

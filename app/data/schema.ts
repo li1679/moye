@@ -32,7 +32,7 @@ export type Prefs = {
   margin: number; bottom: number;
   grid: boolean; near: boolean; thick: boolean; lineType: '实线' | '长虚线' | '短虚线' | '点线'; lineColor: string;
   color: string; paper: string;
-  fontFamily: '系统默认' | '宋体';   // 第 4 批（4.1）加 '黑体'
+  fontFamily: '系统默认' | '宋体' | '黑体';   // 编辑器显示设置读取。
 };
 
 export type ReadPrefs = {

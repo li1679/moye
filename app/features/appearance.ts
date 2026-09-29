@@ -19,12 +19,18 @@ export function applyAppearance(ctx: Ctx): void {
   r.style.setProperty('--margin', (p.margin ?? 24) + 'px');
   r.style.setProperty('--bottom', (p.bottom ?? 80) + 'px');
   r.style.setProperty('--body-weight', state.page !== 'reader' && state.prefs.bold ? '600' : '400');
+  document.documentElement.style.setProperty(
+    '--body-font',
+    state.prefs.fontFamily === '宋体'
+      ? 'var(--font-serif)'
+      : state.prefs.fontFamily === '黑体'
+        ? 'var(--font-sans-cjk)'
+        : 'inherit',
+  );
   const reader = $maybe('.reader');
   if (reader) reader.style.filter = `brightness(${state.readPrefs.brightness}%)`;
   const m = $maybe('.manuscript');
   if (m) {
-    m.style.fontFamily =
-      state.prefs.fontFamily === '宋体' ? 'SimSun,serif' : 'inherit';
     m.classList.toggle('rules', state.page === 'editor' && state.prefs.grid);
     const pref = state.prefs;
     const width = pref.thick ? 2 : 1;

@@ -110,13 +110,15 @@ export function createSearchUi(ctx: Ctx): SearchUi {
         searchResults();
       };
     }
+    $<HTMLInputElement>('#query').focus();
   }
 
   function searchBooks() {
     ctx.openSheet(
       "搜索书籍",
-      `<div class="search-input">${icon("search")}<input id="query" aria-label="书籍名称" placeholder="输入书名" data-scope="titles"></div><div id="search-results"><div class="empty">输入要查找的书名</div></div>`,
+      `<div class="search-input">${icon("search")}<input id="query" aria-label="书名" placeholder="输入书名" data-scope="titles"></div><div id="search-results"><div class="empty">输入要查找的书名</div></div>`,
     );
+    $<HTMLInputElement>('#query').focus();
   }
 
   function openSearch(_arg?: string, _arg2?: string, _arg3?: string, raw?: string) {

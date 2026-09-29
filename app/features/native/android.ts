@@ -9,6 +9,7 @@ import type { Ctx } from '../../core/context';
 export async function installNativeHandlers(ctx: Ctx): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   const state = ctx.state;
+  let lastRootBack = 0;
   const dispatch = ctx.action;
   await App.addListener('backButton', async () => {
     try {
@@ -27,6 +28,12 @@ export async function installNativeHandlers(ctx: Ctx): Promise<void> {
       if (state.page === 'reader' || state.page === 'chapters') { await dispatch('home'); return; }
       if (state.folder !== null) { await dispatch('folder:root'); return; }
       if (state.tab !== 'edit') { await dispatch('tab:edit'); return; }
+      const now = Date.now();
+      if (now - lastRootBack >= 2000) {
+        lastRootBack = now;
+        ctx.toast('再按一次退出');
+        return;
+      }
       await saveNow(state);
       await App.exitApp();
     } catch (error) { ctx.toast('返回未完成：' + String(error)); }

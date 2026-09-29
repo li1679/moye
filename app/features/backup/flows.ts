@@ -2,6 +2,13 @@ import { saveNow, replaceLibrary } from '../../data/autosave';
 import { saveDocument } from '../txt/files';
 import { snapshotLibrary, encodeBackup, decodeBackup, clone, type Library } from './model';
 type Context = { state: Library; openSheet: (title: string, html: string) => void; prepare: () => void };
+
+export function localDate(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 export function createBackupFlows({ state, openSheet, prepare }: Context) {
   const sheet = document.querySelector<HTMLDialogElement>('#sheet')!;
   let busy = false;
@@ -28,7 +35,7 @@ export function createBackupFlows({ state, openSheet, prepare }: Context) {
     location.reload();
   }
   function backup() {
-    openSheet('完整备份与恢复', `<p class="hint">备份包括书籍正文、内嵌封面、分组排序、设置和阅读/编辑位置。文件为本地 JSON，未加密，请自行保管。</p><label class="form-field"><span>备份文件名</span><input id="backup-name" value="墨页备份-${new Date().toISOString().slice(0,10)}.json"></label><button class="primary" id="export-backup">导出完整备份</button><label class="form-field"><span>选择备份以恢复</span><input id="backup-file" type="file" accept=".json,application/json"></label><div id="backup-preview"></div>${state.restorePoint ? '<button class="row" id="restore-previous">恢复到上次导入备份前</button>' : ''}<p id="backup-error" class="error" role="alert"></p><p id="backup-status" class="hint" role="status"></p>`);
+    openSheet('完整备份与恢复', `<p class="hint">备份包括书籍正文、内嵌封面、分组排序、设置和阅读/编辑位置。文件为本地 JSON，未加密，请自行保管。</p><label class="form-field"><span>备份文件名</span><input id="backup-name" value="墨页备份-${localDate()}.json"></label><button class="primary" id="export-backup">导出完整备份</button><label class="form-field"><span>选择备份以恢复</span><input id="backup-file" type="file" accept=".json,application/json"></label><div id="backup-preview"></div>${state.restorePoint ? '<button class="row" id="restore-previous">恢复到上次导入备份前</button>' : ''}<p id="backup-error" class="error" role="alert"></p><p id="backup-status" class="hint" role="status"></p>`);
     sheet.querySelector('#export-backup')!.addEventListener('click', () => void run(async () => {
       prepare();
       await saveNow(state);

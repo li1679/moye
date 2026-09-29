@@ -90,4 +90,44 @@ test.describe('墨页 UI refinement', () => {
     await expect(page.locator('#notice')).toHaveText('撤销');
     await expect(manuscript).toHaveText('长按前正文');
   });
+
+  test('applies the editor font through the shared body font variable', async ({ page }) => {
+    await openEditor(page);
+    await page.locator('[data-action="tool:settings"]').click();
+    await page.locator('[data-action="settings:字体"]').click();
+    await page.locator('#font-family').selectOption('黑体');
+    await expect(page.locator('#font-family')).toHaveValue('黑体');
+    const font = await page.evaluate(() => ({
+      variable: document.documentElement.style.getPropertyValue('--body-font'),
+      inline: (document.querySelector('.manuscript') as HTMLElement).style.fontFamily,
+      computed: getComputedStyle(document.querySelector('.manuscript')!).fontFamily,
+    }));
+    expect(font.variable).toBe('var(--font-sans-cjk)');
+    expect(font.inline).toBe('');
+    expect(font.computed).toContain('Noto Sans CJK SC');
+  });
+
+  test('shows the package version and privacy message in about', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-action="tab:me"]').click();
+    await page.locator('[data-action="about"]').click();
+    await expect(page.locator('.sheet-content')).toContainText('墨页 0.1.0');
+    await expect(page.locator('.sheet-content')).toContainText('本地阅读，随心改文');
+    await expect(page.locator('.sheet-content')).toContainText('所有数据只保存在本机，不联网。');
+  });
+
+  test('uses the revised book and display wording and focuses title search', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-action="new-book"]').click();
+    await expect(page.locator('#book-form')).toContainText('书名');
+    await expect(page.locator('#book-form')).not.toContainText('书籍名称');
+    await page.locator('[data-action="close"]').click();
+    await page.locator('[data-action="title-search"]').click();
+    await expect(page.locator('#query')).toBeFocused();
+    await expect(page.locator('#query')).toHaveAttribute('aria-label', '书名');
+    await page.locator('[data-action="close"]').click();
+    await openEditor(page);
+    await expect(page.locator('[data-action="tool:copy"]')).toHaveAttribute('aria-label', '复制正文');
+    await expect(page.locator('[data-action="tool:settings"]')).toHaveAttribute('aria-label', '显示设置');
+  });
 });

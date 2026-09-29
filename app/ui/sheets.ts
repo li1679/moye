@@ -24,7 +24,7 @@ export function createSheets(sheet: HTMLDialogElement, helpers: { escape: (text:
     else if (!samePage) stack.push({ key, className: sheet.className, nodes: [...sheet.childNodes], scroll, focus: document.activeElement, label: sheet.getAttribute('aria-label') || '' });
     key = nextKey;
     sheet.className = options.className || '';
-    sheet.setAttribute('aria-label', options.label || title || '界面设置');
+    sheet.setAttribute('aria-label', options.label || title || '显示设置');
     sheet.innerHTML = `<div class="sheet-head ${options.header ? 'sheet-custom-head' : 'sheet-title-head'}">${stack.length ? helpers.button('chevron-left', '返回上一级', 'sheet-back') : ''}${options.header || `<h2>${helpers.escape(title)}</h2>`}${helpers.button('x', '关闭', 'close')}</div><div class="sheet-content">${body}</div>`;
     if (!wasOpen) sheet.showModal();
     if (samePage && content()) content()!.scrollTop = scroll;

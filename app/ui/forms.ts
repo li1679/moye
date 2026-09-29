@@ -23,7 +23,7 @@ export function createForms(ctx: Ctx): Forms {
     formImage = b.image || undefined;
     ctx.openSheet(
       edit ? "修改书籍信息" : "新建书籍",
-      `<form id="book-form" data-edit="${edit}"><button class="cover-picker" type="button" data-action="choose-cover">${cover({ ...b, name: b.name || "书籍名称" })}<span>选择封面</span></button><input type="file" id="cover-file" accept="image/*" hidden><label class="form-field"><span>书籍名称</span><input id="book-name" required maxlength="40" placeholder="点击输入书籍名称（必填）" value="${esc(b.name)}"></label><label class="form-field"><span>作者</span><input id="book-author" maxlength="40" placeholder="点击输入作者名（可选）" value="${esc(b.author)}"></label><label class="form-field"><span>简介</span><textarea id="book-description" maxlength="600" placeholder="点击输入简介（可选）">${esc(b.description || "")}</textarea></label><div class="error" id="form-error"></div><button class="primary" type="submit">${edit ? "完成" : "创建"}</button></form>`,
+      `<form id="book-form" data-edit="${edit}"><button class="cover-picker" type="button" data-action="choose-cover">${cover({ ...b, name: b.name || "书名" })}<span>选择封面</span></button><input type="file" id="cover-file" accept="image/*" hidden><label class="form-field"><span>书名</span><input id="book-name" required maxlength="40" placeholder="点击输入书名（必填）" value="${esc(b.name)}"></label><label class="form-field"><span>作者</span><input id="book-author" maxlength="40" placeholder="点击输入作者名（可选）" value="${esc(b.author)}"></label><label class="form-field"><span>简介</span><textarea id="book-description" maxlength="600" placeholder="点击输入简介（可选）">${esc(b.description || "")}</textarea></label><div class="error" id="form-error"></div><button class="primary" type="submit">${edit ? "完成" : "创建"}</button></form>`,
     );
   }
 
@@ -32,6 +32,7 @@ export function createForms(ctx: Ctx): Forms {
       title,
       `<form id="simple-form" data-kind="${action}"><label class="form-field"><span>${label}</span><input id="simple-value" required maxlength="80" value="${esc(value)}" placeholder="${label}" autofocus></label><button class="primary">确定</button></form>`,
     );
+    $<HTMLInputElement>('#simple-value').focus();
   }
 
   function confirmSheet(title: string, message: string, action: string) {
@@ -68,7 +69,7 @@ export function createForms(ctx: Ctx): Forms {
       if (f.id === "book-form") {
         const name = $<HTMLInputElement>("#book-name").value.trim();
         if (!name) {
-          $("#form-error").textContent = "书籍名称不能为空";
+          $("#form-error").textContent = "书名不能为空";
           return;
         }
         const values = {
@@ -77,15 +78,21 @@ export function createForms(ctx: Ctx): Forms {
           description: $<HTMLTextAreaElement>("#book-description").value.trim(),
           image: formImage,
         };
-        if (f.dataset.edit === "true") Object.assign(needBook(state), values);
-        else
-          state.books.push({
+        if (f.dataset.edit === "true") {
+          Object.assign(needBook(state), values);
+        } else {
+          const created = {
             ...values,
             id: Date.now(),
             group: state.folder,
             libraryOrder: nextLibraryOrder(state, state.folder),
             chapters: [],
-          });
+          };
+          state.books.push(created);
+          state.book = created.id;
+          state.chapter = 0;
+          state.page = 'chapters';
+        }
         ctx.closeSheet();
         ctx.render();
       }

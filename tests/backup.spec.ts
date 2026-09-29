@@ -4,6 +4,14 @@ import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { decodeBackup, encodeBackup } from '../app/features/backup/model';
+import { localDate } from '../app/features/backup/flows';
+
+test('backup localDate uses local calendar fields', () => {
+  const date = new Date(0);
+  date.setFullYear(2025, 0, 2);
+  date.setHours(23, 59, 0, 0);
+  expect(localDate(date)).toBe('2025-01-02');
+});
 
 async function menu(page: Page, action: string) {
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
