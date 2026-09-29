@@ -26,4 +26,25 @@ test.describe('墨页 UI refinement', () => {
       if (box) expect(box.height).toBeLessThanOrEqual(304);
     }
   });
+
+  test('uses full-width navigation and paper-ink sheet controls', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.goto('/');
+    const nav = page.locator('.bottom-nav');
+    const navBox = (await nav.boundingBox())!;
+    expect(navBox.x).toBe(0);
+    expect(navBox.width).toBe(360);
+    const indicator = await page.locator('.bottom-nav button.active').evaluate(button => {
+      const style = getComputedStyle(button, '::before');
+      return { width: style.width, height: style.height, color: style.backgroundColor };
+    });
+    expect(indicator).toEqual({ width: '24px', height: '2px', color: 'rgb(179, 58, 46)' });
+
+    await page.locator('[data-action="new-book"]').click();
+    const sheet = page.locator('#sheet');
+    await expect(sheet).toHaveCSS('background-color', 'rgb(251, 248, 242)');
+    expect(await sheet.evaluate(el => getComputedStyle(el, '::before').display)).toBe('none');
+    await expect(sheet.locator('.primary')).toHaveCSS('background-color', 'rgb(31, 29, 26)');
+    await expect(sheet.locator('.primary')).toHaveCSS('color', 'rgb(251, 248, 242)');
+  });
 });
