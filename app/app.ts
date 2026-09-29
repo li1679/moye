@@ -22,7 +22,8 @@ import { createDirectory } from './features/directory';
 import { createSearchUi } from './features/search/search-ui';
 import { createForms } from './ui/forms';
 import { installNativeHandlers } from './features/native/android';
-
+import { isNative } from './features/native/native';
+import { installNativeShareListener, registerShareHandler } from './features/native/share';
 // 组装入口（2.11 从 prototype.js 迁来）：创建 state 与 ctx，装配各页面模块并合并动作表，
 // 安装全局监听，最后做首次渲染。
 
@@ -151,6 +152,17 @@ document.addEventListener('click', (e) => {
 await installNativeHandlers(ctx);
 
 render();
+registerShareHandler(async file => {
+  state.tab = 'edit';
+  state.page = 'home';
+  state.folder = null;
+  render();
+  txtFlows.openImport({ file });
+});
+document.addEventListener('moye:share-error', event => {
+  toast((event as CustomEvent<string>).detail);
+});
+if (isNative) installNativeShareListener();
 // 首屏之后：已有的大封面在空闲时逐本自动压缩（D-13），结果更短才替换。
 const compressIdleCovers = () => {
   const queue = state.books.filter((b) => (b.image?.length ?? 0) > 300_000).slice();

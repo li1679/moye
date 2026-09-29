@@ -28,7 +28,7 @@ export function createTxtFlows(context: Context) {
     }
   }, true);
 
-  function openImport(options: { appendTo?: Book } = {}) {
+  function openImport(options: { appendTo?: Book; file?: File } = {}) {
     const appendTo = options.appendTo;
     openSheet(appendTo ? '导入章节到本书' : '导入 TXT', `<form id="txt-import-form">
       <label class="form-field"><span>选择 TXT 文件</span><input id="txt-file" type="file" accept=".txt,text/plain" required></label>
@@ -111,6 +111,13 @@ export function createTxtFlows(context: Context) {
     };
     for (const selector of ['#txt-file', '#txt-encoding', '#txt-mode']) find(selector).addEventListener('change', parse);
     find('#txt-chapter').addEventListener('change', preview);
+    if (options.file) {
+      const transfer = new DataTransfer();
+      transfer.items.add(options.file);
+      const input = find<HTMLInputElement>('#txt-file');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       event.stopPropagation();
