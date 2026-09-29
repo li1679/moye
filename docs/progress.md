@@ -81,11 +81,19 @@
 
 ## 第 5 批
 - [x] 5.1 窗口化阅读（连续阅读改为半径 1 的动态窗口，常规最多 5 章；离边缘 1.5 屏补载、2 屏外裁剪并补偿顶部 DOM 变化；目录与阅读搜索跳章复用当前会话，不重建滚动容器；正文只由 mountReader 写入一次；大书库打开阅读器 204ms、目录跳章 82ms，低于 2000/1500ms 上限；typecheck 0 错，138 个用例全部通过）　- [x] 5.2 页脚与标签（删除 reader-label 模板和样式；页脚右侧显示章数与独立百分比节点，换章同步更新；typecheck 0 错，138 个用例全部通过）　- [x] 5.3 阅读排版（schema v3 增加阅读字体与段落整理；支持系统默认/宋体/黑体和关/紧凑/宽松，正文两端对齐；整理结果按正文缓存，阅读渲染与搜索共用显示文本，切换时按文字锚点重挂恢复且不修改原文；typecheck 0 错，139 个用例全部通过）　- [x] 5.4 点击翻页（schema v4 增加点击翻页开关；控制栏显示时点按只收起，否则上/下三分区按视口减两行翻屏、中间呼出控制栏，平滑滚动尊重减少动态效果；typecheck 0 错，140 个用例全部通过）
-- [x] 5.5 原生插件（TextDocumentsPlugin 改为统一 MoyeNativePlugin，保留文档保存和缓存清理；新增常亮、窗口亮度、沉浸、电量、音量键和分享 intent 接收；MainActivity 注册新插件并拦截音量键，Manifest 增加 VIEW/SEND text/plain；JS 统一使用 native.ts 桥接；typecheck、Web build、140 个用例及 JDK 21 Android debug build 通过）　- [x] 5.6 阅读器接上原生能力（schema v5 增加音量键翻页、屏幕常亮、沉浸阅读、亮度跟随系统；路由进入阅读器同步原生状态，离开时恢复；网页只在非原生且手动亮度时使用 CSS filter；阅读设置四开关和亮度禁用逻辑接入，音量事件翻屏并清理监听；typecheck 0 错，141 个用例全部通过）　- [x] 5.7 打开方式与分享导入（share.ts 注册网页/原生分享处理器，base64 分享内容转 File；原生分享回到写作书架并复用 TXT 导入预览，openImport 支持传入 File；typecheck 0 错，TXT 23 个和全量 142 个用例全部通过）　- [x] 5.8 删除无用插件（卸载 @capacitor/filesystem 和 @capacitor/status-bar，同步 Android；package.json、android/capacitor.settings.gradle、android/app/capacitor.build.gradle 均无残留；typecheck 和 Web build 通过）　- [x] 5.9 本批收尾（JDK 21 下 Android debug build `BUILD SUCCESSFUL`；typecheck、Web build、全量 142 个 Playwright 用例和 diff 检查通过；无远端权限，待后续在本地合并 main，未推送）
-- [ ] 5.8 删除无用插件　- [ ] 5.9 本批收尾
+- [x] 5.5 原生插件（TextDocumentsPlugin 改为统一 MoyeNativePlugin，保留文档保存和缓存清理；新增常亮、窗口亮度、沉浸、电量、音量键和分享 intent 接收；MainActivity 注册新插件并拦截音量键，Manifest 增加 VIEW/SEND text/plain；JS 统一使用 native.ts 桥接；typecheck、Web build、140 个用例及 JDK 21 Android debug build 通过）　- [x] 5.6 阅读器接上原生能力（schema v5 增加音量键翻页、屏幕常亮、沉浸阅读、亮度跟随系统；路由进入阅读器同步原生状态，离开时恢复；网页只在非原生且手动亮度时使用 CSS filter；阅读设置四开关和亮度禁用逻辑接入，音量事件翻屏并清理监听；typecheck 0 错，141 个用例全部通过）　- [x] 5.7 打开方式与分享导入（share.ts 注册网页/原生分享处理器，base64 分享内容转 File；原生分享回到写作书架并复用 TXT 导入预览，openImport 支持传入 File；typecheck 0 错，TXT 23 个和全量 142 个用例通过）
+- [x] 5.8 删除无用插件（卸载 @capacitor/filesystem 和 @capacitor/status-bar，同步 Android；package.json、android/capacitor.settings.gradle、android/app/capacitor.build.gradle 均无残留；typecheck 和 Web build 通过）　- [x] 5.9 本批收尾（JDK 21 下 Android debug build `BUILD SUCCESSFUL`；typecheck、Web build、全量 142 个 Playwright 用例和 diff 检查通过；无远端权限，本地合并 main）
+
+### 第 5 批性能（大书库 1500 章）
+- 打开阅读器：548 → 204 ms
+- 目录跳到第 1001 章：944 → 82 ms
 
 ## 第 6 批
-- [ ] 6.1 版本号　- [ ] 6.2 清理死代码　- [ ] 6.3 文档　- [ ] 6.4 最终回归　- [ ] 6.5 交付
+- [x] 6.1 版本号（package.json 与 package-lock.json 更新到 1.1.0；Android versionCode 读取版本号计算为 10100，versionName 同步为 1.1.0）
+- [x] 6.2 清理死代码（严格 noUnusedLocals/noUnusedParameters 检查通过；删除未使用的 InputSession 和 directory.ts 导入；旧插件、旧标签及无用导出残留扫描通过）
+- [x] 6.3 文档（更新 README 的开发、测试、备份兼容、调试包与 Release 说明；新增 CHANGELOG.md；更新 CLAUDE.md 目录结构和发布说明）
+- [ ] 6.4 最终回归
+- [ ] 6.5 交付
 
 ## 发现的问题
 （不在本方案范围内、但值得以后处理的问题）
