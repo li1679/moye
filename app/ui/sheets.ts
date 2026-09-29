@@ -1,6 +1,7 @@
+import type { IconName } from '../kit/icons';
 export type SheetOptions = { key?: string; className?: string; header?: string; label?: string };
 type SavedPanel = { key: string | null; className: string; nodes: ChildNode[]; scroll: number; focus: Element | null; label: string };
-export function createSheets(sheet: HTMLDialogElement, helpers: { escape: (text: string) => string; button: (icon: string, label: string, action: string) => string; icons: () => void; restored: () => void }) {
+export function createSheets(sheet: HTMLDialogElement, helpers: { escape: (text: string) => string; button: (icon: IconName, label: string, action: string) => string; restored: () => void }) {
   const stack: SavedPanel[] = [];
   let key: string | null = null;
   let returnFocus: HTMLElement | null = null;
@@ -26,7 +27,6 @@ export function createSheets(sheet: HTMLDialogElement, helpers: { escape: (text:
     sheet.setAttribute('aria-label', options.label || title || '界面设置');
     sheet.innerHTML = `<div class="sheet-head ${options.header ? 'sheet-custom-head' : 'sheet-title-head'}">${stack.length ? helpers.button('chevron-left', '返回上一级', 'sheet-back') : ''}${options.header || `<h2>${helpers.escape(title)}</h2>`}${helpers.button('x', '关闭', 'close')}</div><div class="sheet-content">${body}</div>`;
     if (!wasOpen) sheet.showModal();
-    helpers.icons();
     if (samePage && content()) content()!.scrollTop = scroll;
     if (wasOpen && !samePage) animate();
   }

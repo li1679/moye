@@ -1,0 +1,117 @@
+/* 基础元素：排版、按钮、输入、焦点框、选区、减少动态效果。取值一律来自 tokens.css。 */
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  overscroll-behavior: none;
+}
+body {
+  margin: 0;
+  overflow-x: clip;
+  background: var(--c-paper);
+  color: var(--c-ink);
+  font-family: var(--font-ui);
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.12s,
+    color 0.12s,
+    scale 0.1s;
+}
+button,
+input,
+select,
+textarea {
+  outline-offset: 3px;
+}
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 1.5px solid var(--c-ink);
+}
+button:hover {
+  background-color: var(--c-press);
+}
+button:active {
+  background-color: color-mix(in srgb, var(--c-ink) 9%, transparent);
+}
+button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+button:disabled:hover,
+button:disabled:active {
+  background-color: transparent;
+  scale: 1;
+}
+input,
+textarea {
+  color: inherit;
+}
+::selection {
+  background: var(--c-ink);
+  color: var(--c-on-strong);
+}
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-edge);
+}
+svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.5;
+  flex-shrink: 0;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-xxl);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+}
+small,
+.muted {
+  color: var(--c-ink-2);
+  font-size: var(--fs-xs);
+}
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *:before,
+  *:after,
+  ::backdrop {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

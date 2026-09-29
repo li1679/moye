@@ -32,6 +32,16 @@ test('dragging a scrolled chapter list retains viewport and persists order', asy
   await expect(page.locator('[data-action="chapter:13"] strong')).toHaveText(oldTitle);
 });
 
+test('opening and closing the book menu keeps chapter svg nodes', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  const first = page.locator('.chapter-list .chapter-row svg').first();
+  const node = await first.elementHandle();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  expect(await node!.evaluate(svg => svg === document.querySelector('.chapter-list .chapter-row svg'))).toBe(true);
+});
+
 test('chapter swipe reveals deletion, cancel preserves and confirm deletes', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();
@@ -73,7 +83,7 @@ test('management selects entire rows without replacing footer and leaves last ch
   await expect(row).toHaveAttribute('aria-pressed', 'true');
   await row.click();
   await expect(row).toHaveAttribute('aria-pressed', 'false');
-  expect(await row.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+  expect(await row.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await page.locator('.chapter-batch-footer').evaluate(el => getComputedStyle(el).backgroundColor));
   expect(await footer!.evaluate(el => el === document.querySelector('.chapter-batch-footer'))).toBe(true);
   await page.locator('[data-action="select-all-chapters"]').click();
   await expect(page.locator('[aria-pressed="true"][data-chapter-index]')).toHaveCount(3);

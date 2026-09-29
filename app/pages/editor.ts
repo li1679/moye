@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { $, $$, esc } from '../core/dom';
 import { ib, toolMenu, tools } from '../kit/ui';
-import { renderIcons as icons } from '../ui/icons';
+import { onLongPress } from '../kit/long-press';
 import { ChapterHistory, type HistoryHint } from '../features/editor/history';
 import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
 import { extractInputEdit, type InputEdit } from '../features/editor/input-session';
@@ -15,6 +15,7 @@ import { applyAppearance } from '../features/appearance';
 import { openDirectory } from '../features/directory';
 import { needBook, needChapter } from '../core/library';
 import type { Chapter, Prefs, ToolId } from '../data/schema';
+import { presets } from '../ui/settings';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
 // 2.9 搬走的部分由组装入口注入：搜索面板。
@@ -57,6 +58,32 @@ function isLineType(value: string): value is Prefs['lineType'] {
   let wordCountRevision = 0;
   let pendingFormat: PendingChange[] | null = null;
   let pendingReplace: PendingChange[] | null = null;
+
+  function installToolbarInteractions() {
+    const bars = $$<HTMLElement>('.editor-tools, .editor-bottom', ctx.app);
+    const updateOverflow = (bar: HTMLElement) => {
+      const overflowing = bar.scrollWidth > bar.clientWidth;
+      bar.classList.toggle('overflowing', overflowing);
+      bar.classList.toggle('at-end', overflowing && bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 1);
+    };
+    const listeners = bars.map(bar => {
+      const update = () => updateOverflow(bar);
+      bar.addEventListener('scroll', update, { passive: true });
+      update();
+      return () => bar.removeEventListener('scroll', update);
+    });
+    const resize = () => bars.forEach(updateOverflow);
+    window.addEventListener('resize', resize);
+    const stopLongPress = onLongPress(ctx.app, '.editor-tools .icon, .editor-bottom .icon', button => {
+      const label = button.getAttribute('aria-label');
+      if (label) ctx.toast(label);
+    });
+    ctx.onDispose(() => {
+      listeners.forEach(remove => remove());
+      window.removeEventListener('resize', resize);
+      stopLongPress();
+    });
+  }
 
   function resetHistory(id: string | null = null) {
     if (historyChapterId === id) return;
@@ -179,9 +206,9 @@ function isLineType(value: string): value is Prefs['lineType'] {
     }
     resetHistory(c.id ??= crypto.randomUUID());
     ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count">本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
-    icons();
     applyAppearance(ctx);
     updateHistoryTools();
+    installToolbarInteractions();
     $(".manuscript").textContent = c.body;
     $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
     const scroll = $(".editor-scroll");
@@ -302,6 +329,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
         if (key.startsWith("read")) setPanelValue(state.readPrefs, key.slice(4), el.value);
         else setPanelValue(state.prefs, key, el.value);
         applyAppearance(ctx);
+        ctx.settings.syncPreferenceControls();
       }
     });
     document.addEventListener('change', (e) => {
@@ -338,31 +366,22 @@ function isLineType(value: string): value is Prefs['lineType'] {
     pref(arg, arg2) {
       if (arg === undefined || arg2 === undefined) return;
       const value: string | number = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
-      if (arg.startsWith("read")) {
-        setPanelValue(state.readPrefs, arg.slice(4), value);
-        applyAppearance(ctx);
-        // 保持面板控件、焦点和滚动位置不动。
-        document.querySelectorAll<HTMLElement>('#sheet [data-action^="pref:' + arg + '"]').forEach(button => {
-          button.classList.toggle('selected', button.dataset.action === 'pref:' + arg + ':' + arg2);
-        });
-        const custom = document.querySelector<HTMLInputElement>('#sheet [data-color="' + arg + '"]');
-        if (custom) custom.value = String(value);
-        return;
-      }
-      setPanelValue(state.prefs, arg, value);
+      if (arg.startsWith("read")) setPanelValue(state.readPrefs, arg.slice(4), value);
+      else setPanelValue(state.prefs, arg, value);
       applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
-    'theme-dark'() {
-      state.prefs.paper = "#232527";
-      state.prefs.color = "#dedede";
+    'theme-preset'(arg) {
+      const preset = presets[Number(arg)];
+      if (!preset) return;
+      Object.assign(state.prefs, { paper: preset.paper, color: preset.color });
       applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
-    'theme-light'(arg) {
-      if (arg === undefined) return;
-      state.prefs.paper = arg;
-      state.prefs.color = "#292d30";
+    'read-preset'(arg) {
+      const preset = presets[Number(arg)];
+      if (!preset) return;
+      Object.assign(state.readPrefs, { paper: preset.paper, color: preset.color, night: preset.name === '夜读' });
       applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
@@ -373,7 +392,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
           ["search", "本章搜索", "chapter-search"],
           ["file-output", "导出文档", "export"],
           ["sliders-horizontal", "页面布局", "layout"],
-          ["list-minus", "网格线", "grid"],
+          ["rows-3", "网格线", "grid"],
         ]),
       );
     },

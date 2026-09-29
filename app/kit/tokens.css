@@ -1,0 +1,58 @@
+/* 纸墨风设计变量。颜色、字号、圆角、间距只能从这里取。 */
+:root {
+  color-scheme: light dark;
+
+  --c-paper: #f6f1e7;       /* 应用底色：暖白纸 */
+  --c-surface: #fbf8f2;     /* 栏、卡片、弹层 */
+  --c-ink: #1f1d1a;         /* 主要文字：墨 */
+  --c-ink-2: #5f5a52;       /* 次要文字（在纸色上的对比度约 6:1） */
+  --c-ink-3: #8a8378;       /* 占位、禁用、装饰线；不要用在需要读的信息上 */
+  --c-line: #e3dccf;        /* 分隔线 */
+  --c-edge: #cfc6b6;        /* 控件描边 */
+  --c-press: rgb(31 29 26 / 0.06);
+  --c-seal: #b33a2e;        /* 朱砂：只做点缀（当前位置标记、印章、进度） */
+  --c-danger: #9f2f25;      /* 危险操作（实心按钮） */
+  --c-on-strong: #fbf8f2;   /* 墨色底上的文字 */
+  --c-on-danger: #ffffff;
+  --c-mark: #f3e0b8;        /* 搜索命中的底色 */
+  --c-backdrop: rgb(20 18 15 / 0.38);
+  --c-mask: #000;            /* CSS mask 只读取透明度 */
+
+  --fs-xs: 12px; --fs-s: 13px; --fs-m: 15px; --fs-l: 17px; --fs-xl: 20px; --fs-xxl: 26px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --r-s: 4px; --r-l: 12px;
+  --tap: 44px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --font-ui: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", STSong, SimSun, serif;
+  --font-sans-cjk: system-ui, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+
+  /* 书封色：按书 id 取第 N 种（D-17）。深色模式下不变，封面是“实物”。 */
+  --cover-0: #3d5a73; --cover-0-ink: #f3efe6;   /* 靛青 */
+  --cover-1: #9a6a45; --cover-1-ink: #fbf6ec;   /* 赭石 */
+  --cover-2: #3f5f4f; --cover-2-ink: #f1efe6;   /* 墨绿 */
+  --cover-3: #8e7a8f; --cover-3-ink: #fbf7f4;   /* 藕荷 */
+  --cover-4: #2f3a4f; --cover-4-ink: #efe9df;   /* 黛蓝 */
+  --cover-5: #6b5444; --cover-5-ink: #f6efe4;   /* 茶褐 */
+  --cover-6: #efe7d6; --cover-6-ink: #2b2621;   /* 米白 */
+  --cover-7: #5b7f86; --cover-7-ink: #f5f1ea;   /* 石青 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-paper: #1b1a18;
+    --c-surface: #232220;
+    --c-ink: #e9e4da;
+    --c-ink-2: #b3ab9f;
+    --c-ink-3: #7d766c;
+    --c-line: #34322e;
+    --c-edge: #45423c;
+    --c-press: rgb(233 228 218 / 0.08);
+    --c-seal: #d0584a;
+    --c-danger: #c9483c;
+    --c-on-strong: #1b1a18;
+    --c-mark: #5a4a2a;
+    --c-backdrop: rgb(0 0 0 / 0.5);
+  }
+}

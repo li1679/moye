@@ -3,6 +3,7 @@ dist/
 test-results/
 playwright-report/
 Temp/
+scripts/.cache/
 releases/
 *.log
 *.apk

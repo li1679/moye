@@ -1,7 +1,6 @@
 import Sortable from 'sortablejs';
 import { $, $$, $maybe, esc } from '../core/dom';
 import { icon, ib, toolMenu, cover } from '../kit/ui';
-import { renderIcons as icons } from '../ui/icons';
 import { enableChapterSwipe } from '../features/editor/chapter-swipe';
 import { wordsOf, bookWords } from '../features/editor/text-tools';
 import { pendingBookUndo, takeBookUndo } from '../features/editor/book-undo';
@@ -42,7 +41,6 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     const selected = state.selectedChapters;
     const all = b.chapters.length > 0 && b.chapters.every(c => selected.has(c));
     ctx.app.innerHTML = `<main class="app-shell chapter-page ${managing ? "chapter-managing" : ""}"><header class="topbar">${ib("chevron-left", managing ? "退出章节管理" : "返回书架", managing ? "finish-chapters" : "home")}<div class="title center"><h2>${esc(b.name)}</h2><small>${bookWords(b).toLocaleString()} 字</small></div>${managing ? `<button class="text-action" data-action="finish-chapters">完成</button>` : ib("ellipsis-vertical", "书籍菜单", "book-menu")}</header><div class="chapter-toolbar"><strong>章节</strong><small ${managing ? 'role="status" aria-live="polite"' : ""}>${managing ? `已选 ${selected.size} / ${b.chapters.length} 章` : `${b.chapters.length} 章`}</small>${managing ? "" : ib("square-check-big", "管理章节", "manage-chapters") + ib("file-plus-2", "新建章节", "new-chapter")}</div><section class="chapter-list">${b.chapters.map((c, i) => managing ? `<button class="chapter-row chapter-select-row ${selected.has(c) ? "chapter-selected" : ""}" data-chapter-index="${i}" data-chapter-handle="${i}" data-action="select-chapter:${i}" aria-pressed="${selected.has(c)}" title="点击选择，长按拖动排序">${icon(selected.has(c) ? "square-check" : "square")}<div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div></button>` : `<div class="chapter-swipe"><button class="chapter-delete" data-action="delete-chapter:${i}" aria-label="删除章节：${esc(c.name)}">删除</button><button class="chapter-row" data-action="chapter:${i}"><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div>${icon("chevron-right")}</button></div>`).join("")}</section>${!b.chapters.length ? '<div class="empty">暂无章节</div>' : ""}${managing ? `<footer class="batch-footer chapter-batch-footer"><button data-action="select-all-chapters" ${b.chapters.length ? "" : "disabled"}>${icon(all ? "square-minus" : "square-check-big")}${all ? "取消全选" : "全选"}</button><button data-action="invert-chapters" ${b.chapters.length ? "" : "disabled"}>${icon("repeat-2")}反选</button><button data-action="delete-chapters" ${selected.size ? "" : "disabled"}>${icon("trash-2")}删除 (${selected.size})</button></footer>` : `<button class="new-chapter" data-action="new-chapter">${icon("file-plus-2")}新建章节</button>`}</main>`;
-    icons();
     if (!managing) enableChapterSwipe($('.chapter-list'));
     if (managing && b.chapters.length) {
       chapterSort = new Sortable($('.chapter-list'), {
@@ -72,23 +70,25 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     updateChapterSelection();
   }
 
-  function updateChapterSelection() {
+  function updateChapterSelection(index?: number) {
     const b = currentBook();
     const chapters = b.chapters, selected = state.selectedChapters;
-    $$<HTMLElement>('[data-chapter-index]').forEach(row => {
+    const rows = index === undefined
+      ? $$<HTMLElement>('[data-chapter-index]')
+      : [$<HTMLElement>(`[data-chapter-index="${index}"]`)];
+    for (const row of rows) {
       const active = selected.has(chapters[Number(row.dataset.chapterIndex)]);
       row.classList.toggle('chapter-selected', active);
       row.setAttribute('aria-pressed', String(active));
       row.querySelector('svg')?.remove();
       row.insertAdjacentHTML('afterbegin', icon(active ? 'square-check' : 'square'));
-    });
+    }
     $('.chapter-toolbar small').textContent = `已选 ${selected.size} / ${chapters.length} 章`;
     const all = chapters.length > 0 && chapters.every(c => selected.has(c));
     $<HTMLButtonElement>('[data-action="select-all-chapters"]').innerHTML = icon(all ? 'square-minus' : 'square-check-big') + (all ? '取消全选' : '全选');
     const remove = $<HTMLButtonElement>('[data-action="delete-chapters"]');
     remove.disabled = !selected.size;
     remove.innerHTML = icon('trash-2') + `删除 (${selected.size})`;
-    icons();
   }
 
   function chapterSelection(_arg?: string, _arg2?: string, _arg3?: string, raw?: string) {
@@ -152,7 +152,7 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
           ["book-open-text", "书籍详情", "details"],
           ["pencil-line", "修改信息", "edit-book"],
           ["square-check-big", "管理章节", "manage-chapters"],
-          ["pilcrow", "全书排版", "format-book"],
+          ["wand-sparkles", "全书排版", "format-book"],
           ["search", "本书搜索", "book-search"],
           ["file-input", "导入章节", "import"],
           ["file-output", "导出书籍", "export-book"],
@@ -209,7 +209,7 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
       const b = currentBook();
       const c = b.chapters[Number(arg)];
       state.selectedChapters.has(c) ? state.selectedChapters.delete(c) : state.selectedChapters.add(c);
-      updateChapterSelection();
+      updateChapterSelection(Number(arg));
     },
     'select-all-chapters': chapterSelection,
     'invert-chapters': chapterSelection,
