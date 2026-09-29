@@ -125,6 +125,7 @@ test('chapter swipe reveals deletion, cancel preserves and confirm deletes', asy
   await page.locator('[data-action="delete-chapter:0"]').click();
   await page.locator('[data-action^="confirm-single-chapter:"]').click();
   await expect(page.locator('.chapter-swipe')).toHaveCount(2);
+  await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
   await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
@@ -152,6 +153,48 @@ test('management selects entire rows without replacing footer and leaves last ch
   const bottom = await page.locator('.chapter-batch-footer').boundingBox();
   expect(list!.y + list!.height).toBeLessThanOrEqual(bottom!.y + 1);
   await page.screenshot({ path: 'test-results/chapter-management.png', animations: 'disabled' });
+});
+
+test('library management blocks folders and toggles select all', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="home-menu"]').click();
+  await page.locator('[data-action="batch"]').click();
+  await page.locator('[data-action="folder:1"]').click();
+  await expect(page.locator('#notice')).toContainText('先点“完成”退出管理');
+  await expect(page.locator('.library-managing')).toBeVisible();
+  await page.locator('[data-action="select-all"]').click();
+  await expect(page.locator('[data-action="select-all"]')).toContainText('取消全选');
+  await page.locator('[data-action="select-all"]').click();
+  await expect(page.locator('[data-action="select-all"]')).toContainText('全选');
+});
+
+test('long press enters writing library and chapter management with the target selected', async ({ page }) => {
+  await page.goto('/');
+  const book = page.locator('[data-book-id="1"]');
+  await book.dispatchEvent('pointerdown', { pointerId: 1, pointerType: 'touch', isPrimary: true, clientX: 30, clientY: 30 });
+  await page.waitForTimeout(550);
+  await book.dispatchEvent('pointerup', { pointerId: 1, pointerType: 'touch', isPrimary: true, clientX: 30, clientY: 30 });
+  await expect(page.locator('.library-managing [data-book-id="1"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-action="batch"]').click();
+  await page.locator('[data-action="book:1"]').click();
+  const chapter = page.locator('[data-action="chapter:1"]');
+  await chapter.dispatchEvent('pointerdown', { pointerId: 2, pointerType: 'touch', isPrimary: true, clientX: 30, clientY: 30 });
+  await page.waitForTimeout(550);
+  await page.locator('main').dispatchEvent('pointerup', { pointerId: 2, pointerType: 'touch', isPrimary: true, clientX: 30, clientY: 30 });
+  await expect(page.locator('.chapter-managing [data-action="select-chapter:1"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('chapter management moves selected chapters together while preserving their order', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="manage-chapters"]').click();
+  await page.locator('[data-action="select-chapter:0"]').click();
+  await page.locator('[data-action="select-chapter:1"]').click();
+  await page.locator('[data-action="move-chapters"]').click();
+  await page.locator('[data-action="move-chapters-to:last"]').click();
+  await expect(page.locator('.chapter-row strong')).toHaveText(['第3章  一封来信', '第1章  归途', '第2章  旧书店']);
+  await expect(page.locator('[data-action="select-chapter:1"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-action="select-chapter:2"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('undo redo availability follows edits, undo, redo and new input', async ({ page }) => {

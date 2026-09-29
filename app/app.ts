@@ -84,6 +84,7 @@ forms.install();
 const shelfPage = createShelfPage(ctx, { bookForm: forms.bookForm, inputForm: forms.inputForm, confirmSheet: forms.confirmSheet, searchBooks: searchUi.searchBooks });
 const mePage = createMePage(ctx);
 registerActions(shelfPage);
+shelfPage.install?.();
 registerActions(mePage);
 const editorPage = createEditorPage(ctx, {
   search: searchUi.search,

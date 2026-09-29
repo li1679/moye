@@ -1,6 +1,7 @@
 import Sortable from 'sortablejs';
 import { $, $$, esc } from '../core/dom';
 import { icon, ib, toolMenu, cover } from '../kit/ui';
+import { onLongPress } from '../kit/long-press';
 import { nextLibraryOrder } from '../data/schema';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
@@ -81,8 +82,20 @@ export function createShelfPage(ctx: Ctx, helpers: ShelfHelpers): PageModule {
   function render() {
     const list = state.books.filter((b) => b.group === state.folder);
     const group = state.groups.find((g) => g.id === state.folder);
-    ctx.app.innerHTML = `<main class="app-shell home ${group ? 'folder-page' : ''} ${state.batch ? 'library-managing' : ''}"><header class="topbar">${group ? ib('chevron-left', '返回书架', 'folder:root') : ''}<div class="title"><h1>${esc(group?.name || (state.tab === 'read' ? '阅读' : '墨页'))}</h1></div><div class="actions">${state.batch ? `<button class="text-action" data-action="batch">完成</button>` : ib('search', '搜索', 'title-search') + ib('ellipsis-vertical', '书架菜单', 'home-menu')}</div></header><section class="page-body"><div class="books ${state.view === 'list' ? 'list' : ''} ${state.batch ? 'managing' : ''}">${libraryItems().map(({ item: b, folder }) => folder ? folderItem(b) : `<button class="book ${state.selected.has(b.id) ? 'selected-book' : ''}" data-action="book:${b.id}" data-book-id="${b.id}" data-library-key="book:${b.id}" aria-label="${esc(b.name)}" ${state.batch ? `aria-pressed="${state.selected.has(b.id)}"` : ''}>${state.batch ? `<span class="drag-handle" title="拖动排序" aria-label="拖动排序">${icon('grip-vertical')}</span>` : ''}${cover(b)}<div class="book-info"><div class="book-name" title="${esc(b.name)}">${esc(b.name)}</div>${state.tab === 'read' ? `<small class="book-progress">${readingProgress(b)}</small>` : ''}</div></button>`).join('')}${state.tab === 'edit' && !state.batch ? `<button class="add-book" aria-label="新建书籍" title="新建书籍" data-action="new-book">${icon('plus')}</button>` : ''}</div>${!list.length && (state.folder !== null || !state.groups.length) && state.tab === 'read' ? '<div class="empty">暂无书籍</div>' : ''}</section>${state.batch ? `<div class="batch-footer"><button data-action="select-all">${icon('circle-check')}全选</button><button data-action="move">${icon('folder-input')}移至分组</button><button data-action="delete-books">${icon('trash-2')}删除 (${state.selected.size})</button></div>` : group ? '' : nav(state.tab)}</main>`;
+    const allBooks = list.length > 0 && list.every(book => state.selected.has(book.id));
+    ctx.app.innerHTML = `<main class="app-shell home ${group ? 'folder-page' : ''} ${state.batch ? 'library-managing' : ''}"><header class="topbar">${group ? ib('chevron-left', '返回书架', 'folder:root') : ''}<div class="title"><h1>${esc(group?.name || (state.tab === 'read' ? '阅读' : '墨页'))}</h1></div><div class="actions">${state.batch ? `<button class="text-action" data-action="batch">完成</button>` : ib('search', '搜索', 'title-search') + ib('ellipsis-vertical', '书架菜单', 'home-menu')}</div></header><section class="page-body"><div class="books ${state.view === 'list' ? 'list' : ''} ${state.batch ? 'managing' : ''}">${libraryItems().map(({ item: b, folder }) => folder ? folderItem(b) : `<button class="book ${state.selected.has(b.id) ? 'selected-book' : ''}" data-action="book:${b.id}" data-book-id="${b.id}" data-library-key="book:${b.id}" aria-label="${esc(b.name)}" ${state.batch ? `aria-pressed="${state.selected.has(b.id)}"` : ''}>${state.batch ? `<span class="drag-handle" title="拖动排序" aria-label="拖动排序">${icon('grip-vertical')}</span>` : ''}${cover(b)}<div class="book-info"><div class="book-name" title="${esc(b.name)}">${esc(b.name)}</div>${state.tab === 'read' ? `<small class="book-progress">${readingProgress(b)}</small>` : ''}</div></button>`).join('')}${state.tab === 'edit' && !state.batch ? `<button class="add-book" aria-label="新建书籍" title="新建书籍" data-action="new-book">${icon('plus')}</button>` : ''}</div>${!list.length && (state.folder !== null || !state.groups.length) && state.tab === 'read' ? '<div class="empty">暂无书籍</div>' : ''}</section>${state.batch ? `<div class="batch-footer"><button data-action="select-all">${icon(allBooks ? 'square-minus' : 'circle-check')}${allBooks ? '取消全选' : '全选'}</button><button data-action="move">${icon('folder-input')}移至分组</button><button data-action="delete-books">${icon('trash-2')}删除 (${state.selected.size})</button></div>` : group ? '' : nav(state.tab)}</main>`;
     enableLibrarySort();
+  }
+
+  function install() {
+    onLongPress(ctx.app, '.home:not(.library-managing) .book[data-book-id]', target => {
+      if (state.tab !== 'edit') return;
+      const id = Number(target.dataset.bookId);
+      state.batch = true;
+      state.selected.clear();
+      state.selected.add(id);
+      ctx.render();
+    });
   }
 
   const actions: Record<string, ActionHandler> = {
@@ -105,7 +118,10 @@ export function createShelfPage(ctx: Ctx, helpers: ShelfHelpers): PageModule {
       ctx.render();
     },
     folder(arg) {
-      state.batch = false;
+      if (state.batch) {
+        ctx.toast('先点“完成”退出管理');
+        return;
+      }
       state.selected.clear();
       state.folder = arg === 'root' ? null : Number(arg);
       ctx.render();
@@ -292,5 +308,5 @@ export function createShelfPage(ctx: Ctx, helpers: ShelfHelpers): PageModule {
     backup() { ctx.backup.backup(); },
   };
 
-  return { actions, render };
+  return { actions, render, install };
 }
