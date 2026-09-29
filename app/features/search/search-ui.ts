@@ -9,7 +9,7 @@ import type { ActionHandler, Ctx, PageModule } from '../../core/context';
 // 各搜索面板与结果处理（2.9 从 prototype.js 拆出）：全部书籍/本书/本章搜索、书名搜索、
 // 查找替换面板与命中跳转。编辑器的 find 工具和书架的书名搜索经组装层从这里注入。
 export type SearchUi = PageModule & {
-  search(scope?: string, replace?: boolean): void;
+  search(scope?: string, replace?: boolean, initial?: string): void;
   searchBooks(): void;
   searchHit(): { chapterId: string; offset: number } | null;
   afterReplace(): void;
@@ -23,8 +23,8 @@ export function createSearchUi(ctx: Ctx): SearchUi {
   const searchClient = new SearchClient();
   let currentHits: SearchHit[] = [];
   let selectedMatch: SearchHit | null = null;
+  const keywords: Record<'titles' | 'global' | 'book' | 'chapter', string> = { titles: '', global: '', book: '', chapter: '' };
   let shelfSearchTab: 'title' | 'text' = 'title';
-  const shelfKeywords = { title: '', text: '' };
   const shelfVisited = { title: true, text: false };
 
   function searchResults() {
@@ -32,9 +32,8 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     searchClient.cancel();
     const revision = ++searchRevision;
     const q = $<HTMLInputElement>("#query").value;
-    const scope = $<HTMLInputElement>("#query").dataset.scope;
-    if (scope === 'titles') shelfKeywords.title = q;
-    if (scope === 'global' && ctx.sheet.querySelector('[data-action^="search-tab:"]')) shelfKeywords.text = q;
+    const scope = $<HTMLInputElement>("#query").dataset.scope as keyof typeof keywords;
+    if (scope in keywords) keywords[scope] = q;
     if (scope === "titles") {
       const matches = q.trim()
         ? state.books.filter((b) =>
@@ -86,9 +85,12 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     }, 160);
   }
 
-  function search(scope = "book", replace = false) {
+  function search(scope = "book", replace = false, initial?: string) {
     searchPage = 0;
     selectedMatch = null;
+    const key = scope as keyof typeof keywords;
+    if (initial !== undefined && key in keywords) keywords[key] = initial;
+    const keyword = key in keywords ? keywords[key] : '';
     ctx.openSheet(
       replace
         ? "查找替换"
@@ -97,7 +99,7 @@ export function createSearchUi(ctx: Ctx): SearchUi {
           : scope === "chapter"
             ? "本章搜索"
             : "本书搜索",
-      `<div class="search-input">${icon("search")}<input id="query" aria-label="搜索文本" placeholder="查找指定文本" data-scope="${scope}"></div>${replace ? '<label class="form-field"><span>替换为</span><input id="replacement" placeholder="留空即删除匹配文字"></label><p class="hint">点击结果选择替换位置；未选择时替换第一处。</p><div class="search-actions"><button class="text-action" data-action="replace-one">替换这一处</button><button class="text-action" data-action="replace">替换本章全部</button></div>' : ""}<div id="search-results"><div class="empty">输入要查找的文字</div></div>`,
+      `<div class="search-input">${icon("search")}<input id="query" aria-label="搜索文本" placeholder="查找指定文本" data-scope="${scope}" value="${esc(keyword)}"></div>${replace ? '<label class="form-field"><span>替换为</span><input id="replacement" placeholder="留空即删除匹配文字"></label><p class="hint">点击结果选择替换位置；未选择时替换第一处。</p><div class="search-actions"><button class="text-action" data-action="replace-one">替换这一处</button><button class="text-action" data-action="replace">替换本章全部</button></div>' : ""}<div id="search-results"><div class="empty">输入要查找的文字</div></div>`,
     );
     if (replace) {
       const label = document.createElement('label');
@@ -116,18 +118,20 @@ export function createSearchUi(ctx: Ctx): SearchUi {
       };
     }
     $<HTMLInputElement>('#query').focus();
+    if (keyword) searchResults();
   }
 
   function searchBooks(tab: 'title' | 'text' = shelfSearchTab) {
     const current = ctx.sheet.querySelector<HTMLInputElement>('#query');
     if (current && ctx.sheet.querySelector('[data-action^="search-tab:"]')) {
       const source = current.dataset.scope === 'titles' ? 'title' : 'text';
-      shelfKeywords[source] = current.value;
-      if (!shelfVisited[tab]) shelfKeywords[tab] = current.value;
+      const sourceScope = source === 'title' ? 'titles' : 'global';
+      keywords[sourceScope] = current.value;
+      if (!shelfVisited[tab]) keywords[tab === 'title' ? 'titles' : 'global'] = current.value;
     }
     shelfSearchTab = tab;
     shelfVisited[tab] = true;
-    const keyword = shelfKeywords[tab];
+    const keyword = keywords[tab === 'title' ? 'titles' : 'global'];
     const scope = tab === 'title' ? 'titles' : 'global';
     ctx.openSheet(
       '搜索',

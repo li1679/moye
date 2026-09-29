@@ -37,6 +37,7 @@ export const tools: Record<ToolId, readonly [IconName, string]> = {
   settings: ["settings", "显示设置"],
   keyboard: ["keyboard", "收起键盘"],
   find: ["text-search", "查找替换"],
+  search: ["search", "本章查找"],
   top: ["arrow-up-to-line", "滚动顶部"],
   bottom: ["arrow-down-to-line", "滚动底部"],
   previous: ["arrow-left-to-line", "上一章"],

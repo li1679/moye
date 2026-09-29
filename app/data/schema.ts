@@ -3,8 +3,8 @@
 
 export const SCHEMA_VERSION = 2;
 
-// 第 4 批（4.9）加 'search'
-export const TOOL_IDS = ['copy', 'format', 'undo', 'redo', 'directory', 'settings', 'keyboard', 'find', 'top', 'bottom', 'previous', 'next'] as const;
+// search 供编辑器“本章查找”工具使用；默认工具栏不放置。
+export const TOOL_IDS = ['copy', 'format', 'undo', 'redo', 'directory', 'settings', 'keyboard', 'find', 'search', 'top', 'bottom', 'previous', 'next'] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
 
 export type Anchor = { offset: number; context: string; y: number };

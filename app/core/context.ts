@@ -26,8 +26,8 @@ export interface Ctx {
   book(): Book | undefined;
   chapter(): Chapter | undefined;
   // 跨模块的能力，由组装入口在各模块创建之后填入：
-  // locateText 第 2 批保持原来的第三个参数 selector；第 4 批（4.9）改为 options: { focus?: boolean; selector?: string }
-  editor: { commitBody(value: string, target?: Chapter): void; locateText(offset: number, length?: number, selector?: string): void };
+  // focus:false 只更新高亮和滚动，不改变正文焦点或文档选区。
+  editor: { commitBody(value: string, target?: Chapter): void; locateText(offset: number, length?: number, options?: { focus?: boolean; selector?: string }): void };
   reader: { session(): ReaderSession | null };
   txt: ReturnType<typeof createTxtFlows>;
   backup: ReturnType<typeof createBackupFlows>;

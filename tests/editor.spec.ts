@@ -110,19 +110,32 @@ test('replace selected occurrence and undo all replacements in one step', async 
   await expect(editor(page)).toHaveText('苹果，苹果，苹果');
 });
 
-test('search navigates to second exact occurrence without changing text', async ({ page }) => {
+test('editor find bar starts after the caret, cycles matches and remembers its keyword', async ({ page }) => {
   await open(page);
   const body = '开头目标\n' + '中间正文\n'.repeat(100) + '结尾目标';
   await editor(page).fill(body);
+  await editor(page).evaluate((element, offset) => {
+    const range = document.createRange();
+    range.setStart(element.firstChild!, offset);
+    range.collapse(true);
+    const selection = getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }, body.indexOf('目标') + 2);
   await page.locator('[data-action="editor-menu"]').click();
   await page.locator('[data-action="chapter-search"]').click();
-  await page.locator('#query').fill('目标');
-  await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
-  await page.locator('[data-action="match-hit:1"]').click();
-  await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe('目标');
-  expect(await editor(page).textContent()).toBe(body);
-  expect(await page.locator('.editor-scroll').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
-  await page.screenshot({ path: 'test-results/search-location.png' });
+  const query = page.getByRole('search').getByLabel('查找本章');
+  await expect(query).toBeFocused();
+  await query.fill('目标');
+  await expect(page.locator('.find-count')).toHaveText('2/2');
+  await expect.poll(() => page.locator('.editor-scroll').evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+  await query.press('Enter');
+  await expect(page.locator('.find-count')).toHaveText('1/2');
+  await page.getByRole('button', { name: '关闭查找', exact: true }).click();
+  await page.locator('[data-action="editor-menu"]').click();
+  await page.locator('[data-action="chapter-search"]').click();
+  await expect(page.getByRole('search').getByLabel('查找本章')).toHaveValue('目标');
+  expect(await editor(page).innerText()).toBe(body);
 });
 
 test('whole-book replacement previews and per-chapter undo restores text', async ({ page }) => {
@@ -170,6 +183,10 @@ test('reader search locates text but never becomes editable', async ({ page }) =
   await page.locator('.editor-scroll').click({ position: { x: 200, y: 300 } });
   await page.locator('[data-action="chapter-search"]').click();
   await page.locator('#query').fill('林舟');
+  await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="chapter-search"]').click();
+  await expect(page.locator('#query')).toHaveValue('林舟');
   await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
   await page.locator('[data-action="match-hit:1"]').click();
   await expect(page.locator('.manuscript[contenteditable]')).toHaveCount(0);
