@@ -53,31 +53,3 @@ export function extractInputEdit(value: string, selection: Pick<SelectionPositio
   }
   return { offset: start, before: value.slice(start, end), after: value.slice(0, start) + replacement + value.slice(end), inputType: event.inputType };
 }
-
-export class InputSession {
-  private composing = false;
-  private compositionStart: string | null = null;
-  startComposition(value: string) {
-    this.composing = true;
-    this.compositionStart = value;
-  }
-
-  endComposition() {
-    this.composing = false;
-    this.compositionStart = null;
-  }
-
-  get isComposing() { return this.composing; }
-
-  capture(value: string, selection: Pick<SelectionPosition, 'start' | 'end'>, event: InputLike): InputEdit | null {
-    return extractInputEdit(value, selection, event);
-  }
-
-  commit(edit: InputEdit, actual: string): boolean {
-    return actual === edit.after;
-  }
-
-  compositionBefore(value: string) {
-    return this.compositionStart ?? value;
-  }
-}

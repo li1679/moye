@@ -1,4 +1,4 @@
-import { $, esc } from '../core/dom';
+import { esc } from '../core/dom';
 import { icon } from '../kit/ui';
 import { attachFastScroll } from '../kit/fast-scroll';
 import { wordsOf } from './editor/text-tools';
