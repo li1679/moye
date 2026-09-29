@@ -159,11 +159,15 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
           ["square-check-big", "管理章节", "manage-chapters"],
           ["wand-sparkles", "全书排版", "format-book"],
           ["search", "本书搜索", "book-search"],
-          ["file-input", "导入章节", "import"],
+          ["file-input", "导入章节", "import-chapters"],
           ["file-output", "导出书籍", "export-book"],
           ["trash-2", "删除书籍", "delete-book", true],
         ]),
       );
+    },
+    'import-chapters'() {
+      ctx.closeSheet();
+      ctx.txt.openImport({ appendTo: currentBook() });
     },
     details() {
       const b = currentBook();

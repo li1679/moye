@@ -34,6 +34,26 @@ test('imported spaced headings appear only in chapter title, including after rel
   await expect(page.getByRole('textbox', { name: '章节正文', exact: true })).toHaveText('这是第一段正文。');
 });
 
+test('importing chapters appends to the current book without creating another book', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await page.getByRole('button', { name: '导入章节', exact: true }).click();
+  await expect(page.locator('#sheet .sheet-head h2')).toHaveText('导入章节到本书');
+  await expect(page.locator('#txt-title, #txt-author, #txt-duplicate, #txt-destination')).toHaveCount(0);
+  await page.locator('#txt-file').setInputFiles({ name: '追加章节.txt', mimeType: 'text/plain', buffer: Buffer.from('第4章\n新增正文四。\n第5章\n新增正文五。') });
+  await expect(page.locator('#txt-confirm')).toBeEnabled();
+  await expect(page.locator('#txt-confirm')).toHaveText('追加到本书末尾');
+  await page.locator('#txt-confirm').click();
+  await expect(page.locator('.chapter-row')).toHaveCount(5);
+  await page.getByRole('button', { name: '返回书架', exact: true }).click();
+  await expect(page.locator('.book')).toHaveCount(2);
+  await page.reload();
+  await toShelf(page);
+  await page.locator('[data-action="book:1"]').click();
+  await expect(page.locator('.chapter-row')).toHaveCount(5);
+});
+
 test('TXT round trip preserves headings, preface, CRLF, spaces and empty chapters', () => {
   const parsed = parseText(original, '测试.txt', 'auto');
   expect(parsed.name).toBe('测试小说');
