@@ -2,6 +2,7 @@ import Sortable from 'sortablejs';
 import { $, $$, $maybe, esc } from '../core/dom';
 import { icon, ib, toolMenu, cover } from '../kit/ui';
 import { enableChapterSwipe } from '../features/editor/chapter-swipe';
+import { restoreSelection } from '../features/editor/positions';
 import { wordsOf, bookWords } from '../features/editor/text-tools';
 import { pendingBookUndo, takeBookUndo } from '../features/editor/book-undo';
 import { saveNow } from '../data/autosave';
@@ -139,8 +140,12 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     },
     'new-chapter'() {
       const b = currentBook();
-      b.chapters.push({ id: crypto.randomUUID(), name: "第" + (b.chapters.length + 1) + "章", body: "" });
+      const name = "第" + (b.chapters.length + 1) + "章";
+      b.chapters.push({ id: crypto.randomUUID(), name, body: "" });
+      state.chapter = b.chapters.length - 1;
+      state.page = 'editor';
       ctx.render();
+      restoreSelection($('.editor-heading'), { start: 0, end: name.length, backward: false, field: 'name' }, true);
     },
     'book-menu'() {
       const b = currentBook();

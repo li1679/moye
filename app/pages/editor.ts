@@ -195,6 +195,18 @@ function isLineType(value: string): value is Prefs['lineType'] {
     await saveNow(state);
     ctx.toast(kind === 'replace-one' ? '已替换这一处，可撤销' : '已替换本章全部匹配，可撤销');
   }
+  function insertChapterAfter() {
+    const b = needBook(state);
+    const index = state.chapter + 1;
+    const name = `第${index + 1}章`;
+    b.chapters.splice(index, 0, { id: crypto.randomUUID(), name, body: '' });
+    ctx.closeSheet();
+    ctx.dispose();
+    state.chapter = index;
+    ctx.render();
+    restoreSelection($('.editor-heading'), { start: 0, end: name.length, backward: false, field: 'name' }, true);
+  }
+
 
   function render() {
     ctx.dispose();
@@ -390,6 +402,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
         "更多工具",
         toolMenu([
           ["search", "本章搜索", "chapter-search"],
+          ["file-plus-2", "新建下一章", "insert-chapter-after"],
           ["file-output", "导出文档", "export"],
           ["sliders-horizontal", "页面布局", "layout"],
           ["rows-3", "网格线", "grid"],
@@ -453,8 +466,12 @@ function isLineType(value: string): value is Prefs['lineType'] {
       }
       if (arg === "previous" || arg === "next") {
         const next = state.chapter + (arg === "next" ? 1 : -1);
-        if (next < 0 || next >= needBook(state).chapters.length) {
-          ctx.toast(arg === "next" ? "已经是最后一章" : "已经是第一章");
+        if (next >= needBook(state).chapters.length) {
+          insertChapterAfter();
+          return;
+        }
+        if (next < 0) {
+          ctx.toast("已经是第一章");
           return;
         }
         ctx.dispose();
@@ -462,6 +479,9 @@ function isLineType(value: string): value is Prefs['lineType'] {
         ctx.render();
         return;
       }
+    },
+    'insert-chapter-after'() {
+      insertChapterAfter();
     },
     replace: applyReplace,
     'replace-one': applyReplace,

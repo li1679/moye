@@ -72,6 +72,27 @@ test('returning from editing restores chapter list position and highlights the c
   expect(Math.abs(await page.evaluate(() => scrollY) - before)).toBeLessThan(10);
 });
 
+test('new chapter opens the editor with its full title selected', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.getByRole('button', { name: '新建章节', exact: true }).last().click();
+  await expect(page.locator('.editor-heading')).toHaveText('第4章');
+  await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe('第4章');
+});
+
+test('new next chapter is inserted immediately after the current chapter', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  await page.getByRole('button', { name: '更多工具', exact: true }).click();
+  await page.getByRole('button', { name: '新建下一章', exact: true }).click();
+  await expect(page.locator('.editor-heading')).toHaveText('第2章');
+  await page.getByRole('button', { name: '返回目录', exact: true }).click();
+  await expect(page.locator('.chapter-row')).toHaveCount(4);
+  await expect(page.locator('[data-action="chapter:1"] strong')).toHaveText('第2章');
+  await expect(page.locator('[data-action="chapter:2"] strong')).toHaveText('第2章  旧书店');
+});
+
 test('opening and closing the book menu keeps chapter svg nodes', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();
