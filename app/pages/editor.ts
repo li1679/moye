@@ -224,6 +224,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
     $(".manuscript").textContent = c.body;
     $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
     const scroll = $(".editor-scroll");
+    $(".editor-heading").setAttribute('contenteditable', 'plaintext-only');
     c.id ??= crypto.randomUUID();
     const body = $(".manuscript"), title = $(".editor-heading");
     const previous = state.editing[c.id];
@@ -302,6 +303,19 @@ function isLineType(value: string): value is Prefs['lineType'] {
       if (!(event.target instanceof HTMLElement)) return;
       const element = event.target;
       if (!element.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) return;
+      if (element.matches('.editor-heading')) {
+        if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak') {
+          event.preventDefault();
+          restoreSelection($('.manuscript'), { start: 0, end: 0, backward: false, field: 'body' }, true);
+          return;
+        }
+        if (event.inputType === 'insertFromPaste') {
+          event.preventDefault();
+          const text = event.dataTransfer?.getData('text/plain').replace(/\s*[\r\n]+\s*/g, ' ') ?? '';
+          document.execCommand('insertText', false, text);
+          return;
+        }
+      }
       if (['historyUndo', 'historyRedo'].includes(event.inputType)) {
         event.preventDefault();
         ctx.action('tool:' + (event.inputType === 'historyUndo' ? 'undo' : 'redo')).catch(error => ctx.toast(String(error)));

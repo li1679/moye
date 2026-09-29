@@ -175,3 +175,35 @@ test('reader search locates text but never becomes editable', async ({ page }) =
   await expect(page.locator('.manuscript[contenteditable]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => getSelection()?.toString())).toBe('林舟');
 });
+
+test('title Enter moves focus to the body without adding a line break', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  const title = page.getByRole('textbox', { name: '章节标题', exact: true });
+  const before = await title.innerText();
+  await title.focus();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(title).toHaveText(before);
+  await expect(page.getByRole('textbox', { name: '章节正文', exact: true })).toBeFocused();
+});
+
+test('title paste replaces line breaks with spaces', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  const title = page.getByRole('textbox', { name: '章节标题', exact: true });
+  await title.evaluate(element => {
+    const selection = getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    (element as HTMLElement).focus();
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/plain', '甲\n乙');
+    element.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertFromPaste', dataTransfer, bubbles: true, cancelable: true }));
+  });
+  await expect(title).toHaveText('甲 乙');
+});
