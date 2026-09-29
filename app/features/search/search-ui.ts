@@ -23,6 +23,9 @@ export function createSearchUi(ctx: Ctx): SearchUi {
   const searchClient = new SearchClient();
   let currentHits: SearchHit[] = [];
   let selectedMatch: SearchHit | null = null;
+  let shelfSearchTab: 'title' | 'text' = 'title';
+  const shelfKeywords = { title: '', text: '' };
+  const shelfVisited = { title: true, text: false };
 
   function searchResults() {
     clearTimeout(searchTimer);
@@ -30,6 +33,8 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     const revision = ++searchRevision;
     const q = $<HTMLInputElement>("#query").value;
     const scope = $<HTMLInputElement>("#query").dataset.scope;
+    if (scope === 'titles') shelfKeywords.title = q;
+    if (scope === 'global' && ctx.sheet.querySelector('[data-action^="search-tab:"]')) shelfKeywords.text = q;
     if (scope === "titles") {
       const matches = q.trim()
         ? state.books.filter((b) =>
@@ -113,12 +118,23 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     $<HTMLInputElement>('#query').focus();
   }
 
-  function searchBooks() {
+  function searchBooks(tab: 'title' | 'text' = shelfSearchTab) {
+    const current = ctx.sheet.querySelector<HTMLInputElement>('#query');
+    if (current && ctx.sheet.querySelector('[data-action^="search-tab:"]')) {
+      const source = current.dataset.scope === 'titles' ? 'title' : 'text';
+      shelfKeywords[source] = current.value;
+      if (!shelfVisited[tab]) shelfKeywords[tab] = current.value;
+    }
+    shelfSearchTab = tab;
+    shelfVisited[tab] = true;
+    const keyword = shelfKeywords[tab];
+    const scope = tab === 'title' ? 'titles' : 'global';
     ctx.openSheet(
-      "搜索书籍",
-      `<div class="search-input">${icon("search")}<input id="query" aria-label="书名" placeholder="输入书名" data-scope="titles"></div><div id="search-results"><div class="empty">输入要查找的书名</div></div>`,
+      '搜索',
+      `<div class="sheet-tabs" role="tablist" aria-label="搜索范围"><button role="tab" aria-selected="${tab === 'title'}" class="${tab === 'title' ? 'active' : ''}" data-action="search-tab:title">书名</button><button role="tab" aria-selected="${tab === 'text'}" class="${tab === 'text' ? 'active' : ''}" data-action="search-tab:text">全文</button></div><div class="search-input">${icon('search')}<input id="query" aria-label="${tab === 'title' ? '书名' : '搜索文本'}" placeholder="${tab === 'title' ? '输入书名' : '查找指定文本'}" data-scope="${scope}" value="${esc(keyword)}"></div><div id="search-results"><div class="empty">${tab === 'title' ? '输入要查找的书名' : '输入要查找的文字'}</div></div>`,
     );
     $<HTMLInputElement>('#query').focus();
+    if (keyword) searchResults();
   }
 
   function openSearch(_arg?: string, _arg2?: string, _arg3?: string, raw?: string) {
@@ -153,6 +169,9 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     'global-search': openSearch,
     'book-search': openSearch,
     'chapter-search': openSearch,
+    'search-tab'(arg) {
+      if (arg === 'title' || arg === 'text') searchBooks(arg);
+    },
     'search-page'(arg) {
       searchPage = Math.max(0, searchPage + Number(arg));
       selectedMatch = null;

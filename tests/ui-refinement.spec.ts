@@ -130,4 +130,39 @@ test.describe('墨页 UI refinement', () => {
     await expect(page.locator('[data-action="tool:copy"]')).toHaveAttribute('aria-label', '复制正文');
     await expect(page.locator('[data-action="tool:settings"]')).toHaveAttribute('aria-label', '显示设置');
   });
+
+  test('uses writing reading and settings navigation with four settings actions', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.bottom-nav span')).toHaveText(['写作', '阅读', '设置']);
+    await page.locator('[data-action="tab:me"]').click();
+    await expect(page.locator('.topbar h1')).toHaveText('设置');
+    await expect(page.locator('.profile-intro h2')).toHaveText('墨页 0.1.0');
+    for (const action of ['import', 'backup', 'cache', 'about']) {
+      await expect(page.locator(`[data-action="${action}"]`)).toBeVisible();
+    }
+  });
+
+  test('keeps backup and global search out of the shelf menu', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-action="home-menu"]').click();
+    await expect(page.locator('[data-action="backup"]')).toHaveCount(0);
+    await expect(page.locator('[data-action="global-search"]')).toHaveCount(0);
+    await expect(page.locator('[data-action="import"]')).toBeVisible();
+  });
+
+  test('switches the combined search between title and full text', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('[data-action="title-search"]')).toHaveAttribute('aria-label', '搜索');
+    await page.locator('[data-action="title-search"]').click();
+    await expect(page.locator('[data-action="search-tab:title"]')).toHaveText('书名');
+    await expect(page.locator('[data-action="search-tab:text"]')).toHaveText('全文');
+    await page.locator('#query').fill('雨停');
+    await expect(page.locator('#search-results')).toContainText('雨停之后');
+    await page.locator('[data-action="search-tab:text"]').click();
+    await expect(page.locator('#query')).toHaveValue('雨停');
+    await page.locator('#query').fill('林舟');
+    await expect(page.locator('#search-results')).toContainText('第1章', { timeout: 5000 });
+    await page.locator('[data-action="search-tab:title"]').click();
+    await expect(page.locator('#query')).toHaveValue('雨停');
+  });
 });
