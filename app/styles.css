@@ -42,6 +42,7 @@ body { min-height: 100dvh; }
 .book:active .cover { translate: 0 2px; }
 .book-name { min-width: 0; overflow: hidden; font-size: var(--fs-m); font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .book small { font-size: var(--fs-xs); line-height: 1.7; font-variant-numeric: tabular-nums; }
+.book-progress { display: block; color: var(--c-ink-2); }
 .add-book { display: grid; align-self: start; width: 100%; max-width: 160px; aspect-ratio: 3 / 4; place-items: center; border: 1px dashed var(--c-edge); border-radius: var(--r-s); color: var(--c-ink-3); }
 .add-book:hover, .add-book:active { border-color: var(--c-ink); color: var(--c-ink); background: none; }
 .add-book svg { width: 28px; height: 28px; }
@@ -82,8 +83,12 @@ body { min-height: 100dvh; }
 .editor .icon:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .editor-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-3) var(--margin) var(--bottom); scroll-behavior: smooth; overscroll-behavior-y: contain; }
 .editor-heading { min-height: var(--tap); margin: var(--sp-1) 0 var(--sp-4); padding-bottom: var(--sp-3); overflow-wrap: anywhere; border-bottom: 1px solid color-mix(in srgb, var(--text) 14%, transparent); font-family: var(--font-serif); font-size: var(--fs-xxl); font-weight: 700; }
+.save-dot { display: inline-block; width: var(--sp-2); height: var(--sp-2); margin-right: var(--sp-2); border-radius: 50%; background: var(--c-ink-3); }
+.save-dot[data-state="dirty"], .save-dot[data-state="saving"] { background: var(--c-seal); }
+.save-dot[data-state="failed"] { background: var(--c-danger); }
 .word-count { float: right; margin: var(--sp-1) 0; padding: var(--sp-1) var(--sp-3); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: var(--sp-5); color: color-mix(in srgb, var(--text) 65%, transparent); font-size: var(--fs-s); font-variant-numeric: tabular-nums; }
 .manuscript { min-height: max(100px, calc(var(--viewport-height) - 270px)); outline: 0; overflow-wrap: anywhere; white-space: pre-wrap; caret-color: var(--text); color: var(--text); font-size: var(--font-size); font-weight: var(--body-weight); line-height: var(--leading); }
+.editor:not(.reader) .manuscript { font-family: var(--body-font, inherit); }
 .manuscript:empty::before { content: attr(data-placeholder); color: color-mix(in srgb, var(--text) 35%, transparent); pointer-events: none; }
 .editor-bottom { display: flex; align-items: center; justify-content: space-around; flex-shrink: 0; height: 54px; gap: var(--sp-1); padding: var(--sp-1) var(--sp-2) max(var(--sp-1), env(safe-area-inset-bottom)); overflow-x: auto; border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent); background: var(--paper); scrollbar-width: none; }
 .rules { background-image: var(--rule-image); background-size: 100% var(--rule-height); background-position: 0 var(--rule-offset); }
@@ -144,6 +149,8 @@ dialog.directory-sheet { width: 100%; max-width: 100%; height: calc(var(--viewpo
 .directory-sheet .sheet-head h2 { text-align: left; padding-left: var(--sp-2); }
 .directory-sheet .text-action { display: flex; align-items: center; gap: var(--sp-1); }
 .directory-sheet .text-action svg { width: 18px; height: 18px; }
+.directory-jump { position: sticky; top: 0; z-index: 1; display: flex; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--c-line); background: var(--c-surface); }
+.directory-jump input { min-width: 0; flex: 1; }
 .profile { padding: var(--sp-5); }
 .profile-intro { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-2); padding: var(--sp-1) 0 var(--sp-6); border-bottom: 1px solid var(--c-line); }
 .avatar { display: grid; width: 58px; height: 58px; place-items: center; border: 1px solid var(--c-ink); border-radius: 50%; }

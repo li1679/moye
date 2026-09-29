@@ -9,7 +9,7 @@ import type { ActionHandler, Ctx, PageModule } from '../../core/context';
 // 各搜索面板与结果处理（2.9 从 prototype.js 拆出）：全部书籍/本书/本章搜索、书名搜索、
 // 查找替换面板与命中跳转。编辑器的 find 工具和书架的书名搜索经组装层从这里注入。
 export type SearchUi = PageModule & {
-  search(scope?: string, replace?: boolean): void;
+  search(scope?: string, replace?: boolean, initial?: string): void;
   searchBooks(): void;
   searchHit(): { chapterId: string; offset: number } | null;
   afterReplace(): void;
@@ -20,16 +20,21 @@ export function createSearchUi(ctx: Ctx): SearchUi {
   let searchPage = 0;
   let searchRevision = 0;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchIdleTimer: ReturnType<typeof setTimeout> | undefined;
   const searchClient = new SearchClient();
   let currentHits: SearchHit[] = [];
   let selectedMatch: SearchHit | null = null;
+  const keywords: Record<'titles' | 'global' | 'book' | 'chapter', string> = { titles: '', global: '', book: '', chapter: '' };
+  let shelfSearchTab: 'title' | 'text' = 'title';
+  const shelfVisited = { title: true, text: false };
 
   function searchResults() {
     clearTimeout(searchTimer);
     searchClient.cancel();
     const revision = ++searchRevision;
     const q = $<HTMLInputElement>("#query").value;
-    const scope = $<HTMLInputElement>("#query").dataset.scope;
+    const scope = $<HTMLInputElement>("#query").dataset.scope as keyof typeof keywords;
+    if (scope in keywords) keywords[scope] = q;
     if (scope === "titles") {
       const matches = q.trim()
         ? state.books.filter((b) =>
@@ -64,6 +69,8 @@ export function createSearchUi(ctx: Ctx): SearchUi {
           documents.push({ bookId: b.id, chapterId: c.id, title: c.name, bookName: b.name, body: c.body });
         });
       }
+      clearTimeout(searchIdleTimer);
+      searchIdleTimer = setTimeout(() => searchClient.dispose(), 5 * 60 * 1000);
       try {
         const { hits, total } = await searchClient.search(documents, q, searchPage);
         if (revision !== searchRevision || !$("#search-results")) return;
@@ -81,9 +88,12 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     }, 160);
   }
 
-  function search(scope = "book", replace = false) {
+  function search(scope = "book", replace = false, initial?: string) {
     searchPage = 0;
     selectedMatch = null;
+    const key = scope as keyof typeof keywords;
+    if (initial !== undefined && key in keywords) keywords[key] = initial;
+    const keyword = key in keywords ? keywords[key] : '';
     ctx.openSheet(
       replace
         ? "查找替换"
@@ -92,7 +102,7 @@ export function createSearchUi(ctx: Ctx): SearchUi {
           : scope === "chapter"
             ? "本章搜索"
             : "本书搜索",
-      `<div class="search-input">${icon("search")}<input id="query" aria-label="搜索文本" placeholder="查找指定文本" data-scope="${scope}"></div>${replace ? '<label class="form-field"><span>替换为</span><input id="replacement" placeholder="留空即删除匹配文字"></label><p class="hint">点击结果选择替换位置；未选择时替换第一处。</p><div class="search-actions"><button class="text-action" data-action="replace-one">替换这一处</button><button class="text-action" data-action="replace">替换本章全部</button></div>' : ""}<div id="search-results"><div class="empty">输入要查找的文字</div></div>`,
+      `<div class="search-input">${icon("search")}<input id="query" aria-label="搜索文本" placeholder="查找指定文本" data-scope="${scope}" value="${esc(keyword)}"></div>${replace ? '<label class="form-field"><span>替换为</span><input id="replacement" placeholder="留空即删除匹配文字"></label><p class="hint">点击结果选择替换位置；未选择时替换第一处。</p><div class="search-actions"><button class="text-action" data-action="replace-one">替换这一处</button><button class="text-action" data-action="replace">替换本章全部</button></div>' : ""}<div id="search-results"><div class="empty">输入要查找的文字</div></div>`,
     );
     if (replace) {
       const label = document.createElement('label');
@@ -110,13 +120,28 @@ export function createSearchUi(ctx: Ctx): SearchUi {
         searchResults();
       };
     }
+    $<HTMLInputElement>('#query').focus();
+    if (keyword) searchResults();
   }
 
-  function searchBooks() {
+  function searchBooks(tab: 'title' | 'text' = shelfSearchTab) {
+    const current = ctx.sheet.querySelector<HTMLInputElement>('#query');
+    if (current && ctx.sheet.querySelector('[data-action^="search-tab:"]')) {
+      const source = current.dataset.scope === 'titles' ? 'title' : 'text';
+      const sourceScope = source === 'title' ? 'titles' : 'global';
+      keywords[sourceScope] = current.value;
+      if (!shelfVisited[tab]) keywords[tab === 'title' ? 'titles' : 'global'] = current.value;
+    }
+    shelfSearchTab = tab;
+    shelfVisited[tab] = true;
+    const keyword = keywords[tab === 'title' ? 'titles' : 'global'];
+    const scope = tab === 'title' ? 'titles' : 'global';
     ctx.openSheet(
-      "搜索书籍",
-      `<div class="search-input">${icon("search")}<input id="query" aria-label="书籍名称" placeholder="输入书名" data-scope="titles"></div><div id="search-results"><div class="empty">输入要查找的书名</div></div>`,
+      '搜索',
+      `<div class="sheet-tabs" role="tablist" aria-label="搜索范围"><button role="tab" aria-selected="${tab === 'title'}" class="${tab === 'title' ? 'active' : ''}" data-action="search-tab:title">书名</button><button role="tab" aria-selected="${tab === 'text'}" class="${tab === 'text' ? 'active' : ''}" data-action="search-tab:text">全文</button></div><div class="search-input">${icon('search')}<input id="query" aria-label="${tab === 'title' ? '书名' : '搜索文本'}" placeholder="${tab === 'title' ? '输入书名' : '查找指定文本'}" data-scope="${scope}" value="${esc(keyword)}"></div><div id="search-results"><div class="empty">${tab === 'title' ? '输入要查找的书名' : '输入要查找的文字'}</div></div>`,
     );
+    $<HTMLInputElement>('#query').focus();
+    if (keyword) searchResults();
   }
 
   function openSearch(_arg?: string, _arg2?: string, _arg3?: string, raw?: string) {
@@ -130,12 +155,12 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     );
   }
 
-  // 弹层关闭时停掉待执行的搜索；输入框文字变化时重新搜索。
+  // 关闭面板只取消当前请求；Worker 与索引空闲五分钟后再释放。
   function install() {
     ctx.sheet.addEventListener('close', () => {
       searchRevision++;
       clearTimeout(searchTimer);
-      searchClient.dispose();
+      searchClient.cancel();
     });
     document.addEventListener('input', (event) => {
       if (!(event.target instanceof HTMLInputElement)) return;
@@ -151,6 +176,9 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     'global-search': openSearch,
     'book-search': openSearch,
     'chapter-search': openSearch,
+    'search-tab'(arg) {
+      if (arg === 'title' || arg === 'text') searchBooks(arg);
+    },
     'search-page'(arg) {
       searchPage = Math.max(0, searchPage + Number(arg));
       selectedMatch = null;

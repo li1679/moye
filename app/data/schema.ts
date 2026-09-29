@@ -3,8 +3,8 @@
 
 export const SCHEMA_VERSION = 2;
 
-// 第 4 批（4.9）加 'search'
-export const TOOL_IDS = ['copy', 'format', 'undo', 'redo', 'directory', 'settings', 'keyboard', 'find', 'top', 'bottom', 'previous', 'next'] as const;
+// search 供编辑器“本章查找”工具使用；默认工具栏不放置。
+export const TOOL_IDS = ['copy', 'format', 'undo', 'redo', 'directory', 'settings', 'keyboard', 'find', 'search', 'top', 'bottom', 'previous', 'next'] as const;
 export type ToolId = (typeof TOOL_IDS)[number];
 
 export type Anchor = { offset: number; context: string; y: number };
@@ -32,7 +32,7 @@ export type Prefs = {
   margin: number; bottom: number;
   grid: boolean; near: boolean; thick: boolean; lineType: '实线' | '长虚线' | '短虚线' | '点线'; lineColor: string;
   color: string; paper: string;
-  fontFamily: '系统默认' | '宋体';   // 第 4 批（4.1）加 '黑体'
+  fontFamily: '系统默认' | '宋体' | '黑体';   // 编辑器显示设置读取。
 };
 
 export type ReadPrefs = {
@@ -43,7 +43,7 @@ export type ReadPrefs = {
 };
 
 export type Toolbars = { top: (ToolId | null)[]; bottom: (ToolId | null)[] };
-export type ReadingPosition = { chapter: number; chapterId?: string; scroll: number; anchor?: Anchor };   // 第 4 批（4.10）加 percent、at，给阅读书架用
+export type ReadingPosition = { chapter: number; chapterId?: string; scroll: number; anchor?: Anchor; percent?: number; at?: number };   // percent 和 at 给阅读书架显示进度、最近阅读排序用
 export type EditingPosition = { scroll: number; selection?: SelectionPosition; anchor?: Anchor };
 export type Session = { tab: 'edit' | 'read' | 'me'; page: 'home' | 'chapters' | 'editor' | 'reader'; folder: number | null; book: number | null; chapter: number };
 
@@ -289,7 +289,11 @@ export function validateLibrary(value: unknown): asserts value is Library {
   const checkPositions = (positions: Record<string, any>, reading: boolean) => {
     for (const position of Object.values(positions)) {
       requireValue(object(position) && Number.isFinite(position.scroll) && position.scroll >= 0, '滚动位置无效');
-      if (reading) requireValue(Number.isInteger(position.chapter) && position.chapter >= 0 && (position.chapterId === undefined || typeof position.chapterId === 'string'), '阅读章节位置无效');
+      if (reading) {
+        requireValue(Number.isInteger(position.chapter) && position.chapter >= 0 && (position.chapterId === undefined || typeof position.chapterId === 'string'), '阅读章节位置无效');
+        if (position.percent !== undefined) requireValue(Number.isFinite(position.percent) && position.percent >= 0 && position.percent <= 100, '阅读百分比无效');
+        if (position.at !== undefined) requireValue(Number.isFinite(position.at) && position.at >= 0, '阅读时间无效');
+      }
       if (position.anchor) requireValue(object(position.anchor) && Number.isInteger(position.anchor.offset) && position.anchor.offset >= 0 && typeof position.anchor.context === 'string' && Number.isFinite(position.anchor.y), '文字锚点无效');
       if (position.selection) requireValue(object(position.selection) && ['body','name'].includes(position.selection.field) && Number.isInteger(position.selection.start) && position.selection.start >= 0 && Number.isInteger(position.selection.end) && position.selection.end >= position.selection.start, '编辑选区无效');
     }

@@ -29,14 +29,15 @@ export const confirmSheetHtml = (message: string, action: string) =>
 
 // 工具栏按钮的图标与名称（编辑器工具栏、页面布局共用）。
 export const tools: Record<ToolId, readonly [IconName, string]> = {
-  copy: ["copy", "拷贝正文"],
+  copy: ["copy", "复制正文"],
   format: ["wand-sparkles", "一键排版"],
   undo: ["undo-2", "撤销"],
   redo: ["redo-2", "重做"],
   directory: ["list-ordered", "目录"],
-  settings: ["settings", "界面设置"],
+  settings: ["settings", "显示设置"],
   keyboard: ["keyboard", "收起键盘"],
   find: ["text-search", "查找替换"],
+  search: ["search", "本章查找"],
   top: ["arrow-up-to-line", "滚动顶部"],
   bottom: ["arrow-down-to-line", "滚动底部"],
   previous: ["arrow-left-to-line", "上一章"],

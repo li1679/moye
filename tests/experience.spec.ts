@@ -95,6 +95,23 @@ test('chapter progress seeks within the active chapter and viewport avoids botto
   expect(rects.scroll.bottom).toBeLessThanOrEqual(rects.footer.top + 1);
 });
 
+test('reading shelf shows whole-book progress and sorts by most recent reading', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="tab:read"]').click();
+  await page.locator('[data-action="book:2"]').click();
+  await controls(page);
+  await page.locator('.reader-progress input').fill('50');
+  await expect(page.locator('#progress-value')).toHaveText('50%');
+  await page.locator('[data-action="home"]').click();
+  await expect(page.locator('[data-book-id="2"] .book-progress')).toHaveText('读到 50%');
+  await expect(page.locator('[data-book-id="1"] .book-progress')).toHaveText('未读');
+  await page.locator('[data-action="home-menu"]').click();
+  await page.locator('[data-action="read-sort:recent"]').click();
+  await expect(page.locator('.book').first()).toHaveAttribute('data-book-id', '2');
+  await page.locator('[data-action="home-menu"]').click();
+  await expect(page.locator('[data-action="read-sort:manual"]')).toContainText('按手动顺序排序');
+});
+
 test('settings keep panel and reading positions, isolate colors and center the heading', async ({ page }) => {
   await prepare(page);
   await reading(page);

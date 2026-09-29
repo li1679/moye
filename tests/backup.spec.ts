@@ -4,9 +4,17 @@ import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { decodeBackup, encodeBackup } from '../app/features/backup/model';
+import { localDate } from '../app/features/backup/flows';
+
+test('backup localDate uses local calendar fields', () => {
+  const date = new Date(0);
+  date.setFullYear(2025, 0, 2);
+  date.setHours(23, 59, 0, 0);
+  expect(localDate(date)).toBe('2025-01-02');
+});
 
 async function menu(page: Page, action: string) {
-  await page.getByRole('button', { name: '书架菜单', exact: true }).click();
+  await page.locator('[data-action="tab:me"]').click();
   await page.locator('[data-action="' + action + '"]').click();
 }
 async function exportBackup(page: Page) {
@@ -17,6 +25,7 @@ async function exportBackup(page: Page) {
   return readFile((await download.path())!, 'utf8');
 }
 async function deleteBook(page: Page) {
+  await toShelf(page);
   await page.locator('[data-action="book:1"]').click();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
   await page.locator('[data-action="delete-book"]').click();
@@ -29,6 +38,11 @@ async function selectBackup(page: Page, text: string) {
   await expect(page.locator('#confirm-backup-restore')).toBeDisabled();
   await page.locator('#backup-confirm-check').check();
 }
+async function clickAndWaitForReload(page: Page, selector: string) {
+  const loaded = page.waitForEvent('domcontentloaded');
+  await page.locator(selector).click();
+  await loaded;
+}
 
 test('backup restore is complete and can roll back to previous library', async ({ page }) => {
   await page.goto('/');
@@ -39,11 +53,13 @@ test('backup restore is complete and can roll back to previous library', async (
   await deleteBook(page);
   await menu(page, 'backup');
   await selectBackup(page, text);
-  await page.locator('#confirm-backup-restore').click();
+  await clickAndWaitForReload(page, '#confirm-backup-restore');
+  await toShelf(page);
   await expect(page.locator('[data-action="book:1"]')).toBeVisible();
   await menu(page, 'backup');
   await page.locator('#restore-previous').click();
-  await page.locator('#confirm-previous').click();
+  await clickAndWaitForReload(page, '#confirm-previous');
+  await toShelf(page);
   await expect(page.locator('.books')).toBeVisible();
   await expect(page.locator('[data-action="book:1"]')).toHaveCount(0);
 });
@@ -102,7 +118,8 @@ test('backup restores embedded covers, preferences and reading position through 
   data.prefs.font = 24;
   data.reading['1'] = { chapter: 1, chapterId: data.books[0].chapters[1].id, scroll: 0 };
   await selectBackup(page, await encodeBackup(data));
-  await page.locator('#confirm-backup-restore').click();
+  await clickAndWaitForReload(page, '#confirm-backup-restore');
+  await toShelf(page);
   await expect(page.locator('.books')).toHaveClass(/list/);
   await expect(page.locator('[data-action="book:1"] img')).toHaveAttribute('src', data.books[0].image);
   const restored = (await decodeBackup(await exportBackup(page))).data;

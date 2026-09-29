@@ -1,7 +1,10 @@
 import Sortable from 'sortablejs';
 import { $, $$, $maybe, esc } from '../core/dom';
 import { icon, ib, toolMenu, cover } from '../kit/ui';
+import { onLongPress } from '../kit/long-press';
+import { attachFastScroll } from '../kit/fast-scroll';
 import { enableChapterSwipe } from '../features/editor/chapter-swipe';
+import { restoreSelection } from '../features/editor/positions';
 import { wordsOf, bookWords } from '../features/editor/text-tools';
 import { pendingBookUndo, takeBookUndo } from '../features/editor/book-undo';
 import { saveNow } from '../data/autosave';
@@ -40,7 +43,7 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     const managing = state.chapterBatch;
     const selected = state.selectedChapters;
     const all = b.chapters.length > 0 && b.chapters.every(c => selected.has(c));
-    ctx.app.innerHTML = `<main class="app-shell chapter-page ${managing ? "chapter-managing" : ""}"><header class="topbar">${ib("chevron-left", managing ? "退出章节管理" : "返回书架", managing ? "finish-chapters" : "home")}<div class="title center"><h2>${esc(b.name)}</h2><small>${bookWords(b).toLocaleString()} 字</small></div>${managing ? `<button class="text-action" data-action="finish-chapters">完成</button>` : ib("ellipsis-vertical", "书籍菜单", "book-menu")}</header><div class="chapter-toolbar"><strong>章节</strong><small ${managing ? 'role="status" aria-live="polite"' : ""}>${managing ? `已选 ${selected.size} / ${b.chapters.length} 章` : `${b.chapters.length} 章`}</small>${managing ? "" : ib("square-check-big", "管理章节", "manage-chapters") + ib("file-plus-2", "新建章节", "new-chapter")}</div><section class="chapter-list">${b.chapters.map((c, i) => managing ? `<button class="chapter-row chapter-select-row ${selected.has(c) ? "chapter-selected" : ""}" data-chapter-index="${i}" data-chapter-handle="${i}" data-action="select-chapter:${i}" aria-pressed="${selected.has(c)}" title="点击选择，长按拖动排序">${icon(selected.has(c) ? "square-check" : "square")}<div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div></button>` : `<div class="chapter-swipe"><button class="chapter-delete" data-action="delete-chapter:${i}" aria-label="删除章节：${esc(c.name)}">删除</button><button class="chapter-row" data-action="chapter:${i}"><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div>${icon("chevron-right")}</button></div>`).join("")}</section>${!b.chapters.length ? '<div class="empty">暂无章节</div>' : ""}${managing ? `<footer class="batch-footer chapter-batch-footer"><button data-action="select-all-chapters" ${b.chapters.length ? "" : "disabled"}>${icon(all ? "square-minus" : "square-check-big")}${all ? "取消全选" : "全选"}</button><button data-action="invert-chapters" ${b.chapters.length ? "" : "disabled"}>${icon("repeat-2")}反选</button><button data-action="delete-chapters" ${selected.size ? "" : "disabled"}>${icon("trash-2")}删除 (${selected.size})</button></footer>` : `<button class="new-chapter" data-action="new-chapter">${icon("file-plus-2")}新建章节</button>`}</main>`;
+    ctx.app.innerHTML = `<main class="app-shell chapter-page ${managing ? "chapter-managing" : ""}"><header class="topbar">${ib("chevron-left", managing ? "退出章节管理" : "返回书架", managing ? "finish-chapters" : "home")}<div class="title center"><h2>${esc(b.name)}</h2><small>${bookWords(b).toLocaleString()} 字</small></div>${managing ? `<button class="text-action" data-action="finish-chapters">完成</button>` : ib("ellipsis-vertical", "书籍菜单", "book-menu")}</header><div class="chapter-toolbar"><strong>章节</strong><small ${managing ? 'role="status" aria-live="polite"' : ""}>${managing ? `已选 ${selected.size} / ${b.chapters.length} 章` : `${b.chapters.length} 章`}</small>${managing ? "" : ib("square-check-big", "管理章节", "manage-chapters") + ib("file-plus-2", "新建章节", "new-chapter")}</div><section class="chapter-list">${b.chapters.map((c, i) => managing ? `<button class="chapter-row chapter-select-row ${selected.has(c) ? "chapter-selected" : ""}" data-chapter-index="${i}" data-chapter-handle="${i}" data-action="select-chapter:${i}" aria-pressed="${selected.has(c)}" title="点击选择，长按拖动排序">${icon(selected.has(c) ? "square-check" : "square")}<div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div></button>` : `<div class="chapter-swipe"><button class="chapter-delete" data-action="delete-chapter:${i}" aria-label="删除章节：${esc(c.name)}">删除</button><button class="chapter-row" data-action="chapter:${i}"><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c).toLocaleString()} 字</small></div>${icon("chevron-right")}</button></div>`).join("")}</section>${!b.chapters.length ? '<div class="empty">暂无章节</div>' : ""}${managing ? `<footer class="batch-footer chapter-batch-footer"><button data-action="select-all-chapters" ${b.chapters.length ? "" : "disabled"}>${icon(all ? "square-minus" : "square-check-big")}${all ? "取消全选" : "全选"}</button><button data-action="invert-chapters" ${b.chapters.length ? "" : "disabled"}>${icon("repeat-2")}反选</button><button data-action="move-chapters" ${selected.size ? "" : "disabled"}>${icon("arrow-up-down")}移动</button><button data-action="delete-chapters" ${selected.size ? "" : "disabled"}>${icon("trash-2")}删除 (${selected.size})</button></footer>` : `<button class="new-chapter" data-action="new-chapter">${icon("file-plus-2")}新建章节</button>`}</main>`;
     if (!managing) enableChapterSwipe($('.chapter-list'));
     if (managing && b.chapters.length) {
       chapterSort = new Sortable($('.chapter-list'), {
@@ -59,6 +62,7 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
       });
       ctx.onDispose(() => { chapterSort?.destroy(); chapterSort = null; });
     }
+    ctx.onDispose(attachFastScroll(window));
   }
 
   function reindexChapterRows() {
@@ -89,6 +93,8 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     const remove = $<HTMLButtonElement>('[data-action="delete-chapters"]');
     remove.disabled = !selected.size;
     remove.innerHTML = icon('trash-2') + `删除 (${selected.size})`;
+    const move = $<HTMLButtonElement>('[data-action="move-chapters"]');
+    move.disabled = !selected.size;
   }
 
   function chapterSelection(_arg?: string, _arg2?: string, _arg3?: string, raw?: string) {
@@ -126,6 +132,31 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
       list.scrollTop = scroll;
       handle.focus({ preventScroll: true });
     });
+    onLongPress(ctx.app, '.chapter-page:not(.chapter-managing) [data-action^="chapter:"]', target => {
+      const index = Number(target.dataset.action?.split(':')[1]);
+      const chapter = currentBook().chapters[index];
+      if (!chapter) return;
+      state.chapterBatch = true;
+      state.selectedChapters = new Set([chapter]);
+      ctx.render();
+    });
+    document.addEventListener('submit', event => {
+      if (!(event.target instanceof HTMLFormElement) || event.target.id !== 'move-chapters-form') return;
+      event.preventDefault();
+      const input = event.target.elements.namedItem('chapter') as HTMLInputElement | null;
+      moveSelectedChapters('after', Number(input?.value));
+    });
+  }
+
+  function moveSelectedChapters(target: 'first' | 'last' | 'after', chapterNumber = 0) {
+    const b = currentBook();
+    const selected = b.chapters.filter(chapter => state.selectedChapters.has(chapter));
+    if (!selected.length) return;
+    const remaining = b.chapters.filter(chapter => !state.selectedChapters.has(chapter));
+    const index = target === 'first' ? 0 : target === 'last' ? remaining.length : Math.min(remaining.length, Math.max(0, Math.trunc(chapterNumber)));
+    updateChapters(state, [...remaining.slice(0, index), ...selected, ...remaining.slice(index)], b);
+    ctx.closeSheet();
+    ctx.render();
   }
 
   const actions: Record<string, ActionHandler> = {
@@ -139,8 +170,12 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     },
     'new-chapter'() {
       const b = currentBook();
-      b.chapters.push({ id: crypto.randomUUID(), name: "第" + (b.chapters.length + 1) + "章", body: "" });
+      const name = "第" + (b.chapters.length + 1) + "章";
+      b.chapters.push({ id: crypto.randomUUID(), name, body: "" });
+      state.chapter = b.chapters.length - 1;
+      state.page = 'editor';
       ctx.render();
+      restoreSelection($('.editor-heading'), { start: 0, end: name.length, backward: false, field: 'name' }, true);
     },
     'book-menu'() {
       const b = currentBook();
@@ -154,11 +189,15 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
           ["square-check-big", "管理章节", "manage-chapters"],
           ["wand-sparkles", "全书排版", "format-book"],
           ["search", "本书搜索", "book-search"],
-          ["file-input", "导入章节", "import"],
+          ["file-input", "导入章节", "import-chapters"],
           ["file-output", "导出书籍", "export-book"],
           ["trash-2", "删除书籍", "delete-book", true],
         ]),
       );
+    },
+    'import-chapters'() {
+      ctx.closeSheet();
+      ctx.txt.openImport({ appendTo: currentBook() });
     },
     details() {
       const b = currentBook();
@@ -213,6 +252,13 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
     },
     'select-all-chapters': chapterSelection,
     'invert-chapters': chapterSelection,
+    'move-chapters'() {
+      if (!state.selectedChapters.size) return;
+      ctx.openSheet('移动章节', `<button class="row" data-action="move-chapters-to:first"><span>移到最前</span>${icon('chevron-right')}</button><button class="row" data-action="move-chapters-to:last"><span>移到最后</span>${icon('chevron-right')}</button><form id="move-chapters-form"><label class="form-field"><span>移到第 N 章之后</span><input name="chapter" type="number" min="0" max="${currentBook().chapters.length}" value="1" inputmode="numeric"></label><button class="primary" type="submit">移动</button></form>`);
+    },
+    'move-chapters-to'(arg) {
+      if (arg === 'first' || arg === 'last') moveSelectedChapters(arg);
+    },
     'delete-chapter'(arg) {
       const b = currentBook();
       const c = b.chapters[Number(arg)];

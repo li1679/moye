@@ -1,10 +1,9 @@
 import { saveNow } from '../../data/autosave';
-import { nextLibraryOrder } from '../../data/schema';
+import { nextLibraryOrder, type Book } from '../../data/schema';
 import { saveTextFile } from './files';
 import { exportText, txtFilename, type ParsedText, type ChapterText } from './text';
 import type { AppState } from '../../core/state';
 
-type Book = { id: number; name: string; author: string; chapters: ChapterText[]; sourceHash?: string; group: number | null; libraryOrder?: number };
 type Context = {
   // 组装层传的是完整的 AppState；page/book 等键由导入流程自己赋值。
   state: AppState;
@@ -29,22 +28,22 @@ export function createTxtFlows(context: Context) {
     }
   }, true);
 
-  function openImport() {
-    openSheet('导入 TXT', `<form id="txt-import-form">
+  function openImport(options: { appendTo?: Book } = {}) {
+    const appendTo = options.appendTo;
+    openSheet(appendTo ? '导入章节到本书' : '导入 TXT', `<form id="txt-import-form">
       <label class="form-field"><span>选择 TXT 文件</span><input id="txt-file" type="file" accept=".txt,text/plain" required></label>
       <label class="form-field"><span>文本编码</span><select id="txt-encoding"><option value="auto">自动识别</option><option value="utf-8">UTF-8</option><option value="gb18030">GB18030 / GBK</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option><option value="big5">Big5</option></select></label>
       <label class="form-field"><span>章节识别</span><select id="txt-mode"><option value="auto">自动识别章节</option><option value="single">整篇作为一章</option></select></label>
       <p id="txt-summary" class="hint" role="status">选择文件后预览识别结果。</p>
+      <p id="txt-warning" class="error"></p>
       <div id="txt-result" hidden>
-        <label class="form-field"><span>书名</span><input id="txt-title" maxlength="100" required></label>
-        <label class="form-field"><span>作者</span><input id="txt-author" maxlength="100" placeholder="未识别到可留空"></label>
+        ${appendTo ? '' : '<label class="form-field"><span>书名</span><input id="txt-title" maxlength="100" required></label><label class="form-field"><span>作者</span><input id="txt-author" maxlength="100" placeholder="未识别到可留空"></label>'}
         <label class="form-field"><span>章节预览</span><select id="txt-chapter"></select></label>
         <pre id="txt-preview" class="txt-preview"></pre>
-        <label id="txt-duplicate-row" class="row" hidden><span>已导入过此文件，仍作为另一本书导入</span><input id="txt-duplicate" type="checkbox"></label>
-        <label class="form-field"><span>导入后</span><select id="txt-destination"><option value="chapters">查看目录</option><option value="reader">开始阅读</option></select></label>
+        ${appendTo ? '' : '<label id="txt-duplicate-row" class="row" hidden><span>已导入过此文件，仍作为另一本书导入</span><input id="txt-duplicate" type="checkbox"></label><label class="form-field"><span>导入后</span><select id="txt-destination"><option value="chapters">查看目录</option><option value="reader">开始阅读</option></select></label>'}
       </div>
       <p id="txt-error" class="error" role="alert"></p>
-      <button class="primary" id="txt-confirm" disabled>确认导入</button>
+      <button class="primary" id="txt-confirm" disabled>${appendTo ? '追加到本书末尾' : '确认导入'}</button>
     </form>`);
     const form = sheet.querySelector<HTMLFormElement>('#txt-import-form')!;
     const find = <T extends HTMLElement>(selector: string) => form.querySelector<T>(selector)!;
@@ -66,6 +65,7 @@ export function createTxtFlows(context: Context) {
       confirm.disabled = true;
       find('#txt-result').hidden = true;
       error.textContent = '';
+      find('#txt-warning').textContent = '';
       find('#txt-summary').textContent = '正在读取并识别…';
       try {
         if (!/\.txt$/i.test(selected.name)) throw new Error('请选择 .txt 格式的文件。');
@@ -83,15 +83,20 @@ export function createTxtFlows(context: Context) {
           if (current !== revision) return;
           if (event.data.error) { failure(event.data.error); return; }
           parsed = event.data.result as ParsedText;
-          find<HTMLInputElement>('#txt-title').value = parsed.name;
-          find<HTMLInputElement>('#txt-author').value = parsed.author;
+          if (!appendTo) {
+            find<HTMLInputElement>('#txt-title').value = parsed.name;
+            find<HTMLInputElement>('#txt-author').value = parsed.author;
+          }
           const select = find<HTMLSelectElement>('#txt-chapter');
           select.replaceChildren();
           parsed.chapters.forEach((chapter, index) => select.add(new Option(chapter.name, String(index))));
-          const duplicate = state.books.some(book => book.sourceHash === parsed!.hash);
-          find('#txt-duplicate-row').hidden = !duplicate;
-          find<HTMLInputElement>('#txt-duplicate').checked = false;
+          if (!appendTo) {
+            const duplicate = state.books.some(book => book.sourceHash === parsed!.hash);
+            find('#txt-duplicate-row').hidden = !duplicate;
+            find<HTMLInputElement>('#txt-duplicate').checked = false;
+          }
           find('#txt-summary').textContent = selected.name + ' · ' + parsed.encoding.toUpperCase() + ' · ' + parsed.chapters.length + ' 章 · ' + parsed.characters.toLocaleString() + ' 字符（含标题和空白）';
+          find('#txt-warning').textContent = parsed.warning ?? '';
           find('#txt-result').hidden = false;
           confirm.disabled = false;
           preview();
@@ -110,6 +115,31 @@ export function createTxtFlows(context: Context) {
       event.preventDefault();
       event.stopPropagation();
       if (!parsed || !file || busy) return;
+      const chapters = parsed.chapters.map(chapter => ({ ...chapter, id: crypto.randomUUID() }));
+      if (appendTo) {
+        const previousChapters = appendTo.chapters;
+        busy = true;
+        for (const control of Array.from(form.elements)) (control as HTMLInputElement).disabled = true;
+        error.textContent = '';
+        confirm.textContent = '正在保存…';
+        appendTo.chapters = [...previousChapters, ...chapters];
+        try {
+          await saveNow(state);
+          busy = false;
+          closeSheet();
+          state.book = appendTo.id;
+          state.page = 'chapters';
+          render();
+          toast(`已追加 ${chapters.length} 章`);
+        } catch (failure) {
+          appendTo.chapters = previousChapters;
+          error.textContent = '导入未保存，请重试：' + String(failure instanceof Error ? failure.message : failure);
+          busy = false;
+          for (const control of Array.from(form.elements)) (control as HTMLInputElement).disabled = false;
+          confirm.textContent = '重新追加';
+        }
+        return;
+      }
       const name = find<HTMLInputElement>('#txt-title').value.trim();
       if (!name) { error.textContent = '书名不能为空。'; return; }
       if (state.books.some(book => book.sourceHash === parsed!.hash) && !find<HTMLInputElement>('#txt-duplicate').checked) {
@@ -122,12 +152,9 @@ export function createTxtFlows(context: Context) {
       confirm.textContent = '正在保存…';
       let id = Date.now();
       while (state.books.some(book => book.id === id)) id++;
-      const imported = {
+      const imported: Book = {
         id, name, author: find<HTMLInputElement>('#txt-author').value.trim(), group: null,
-        libraryOrder: nextLibraryOrder(context.state, null),
-        // schema 的 Chapter.id 必填；原来由 autosave 在保存时补，这里直接生成（同样是随机 UUID，行为一致）。
-        chapters: parsed.chapters.map(chapter => ({ ...chapter, id: crypto.randomUUID() })),
-        sourceHash: parsed.hash,
+        libraryOrder: nextLibraryOrder(context.state, null), chapters, sourceHash: parsed.hash,
       };
       state.books.push(imported);
       try {

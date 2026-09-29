@@ -38,8 +38,8 @@ test('grid line and color updates retain live panel nodes, scroll and persisted 
   await page.locator('[data-action="pref:lineColor:#989b9d"]').click();
   expect(await page.evaluate(() => (window as any).gridPanel === document.querySelector('#sheet .sheet-content'))).toBe(true);
   await page.locator('[data-action="sheet-back"]').click();
-  await expect(page.locator('#sheet')).toHaveAttribute('aria-label', '界面设置');
-  await page.locator('[data-action="settings:排版"]').click();
+  await expect(page.locator('#sheet')).toHaveAttribute('aria-label', '显示设置');
+  await page.locator('[data-action="settings:排版规则"]').click();
   await page.locator('[data-action="close"]').click();
   await page.waitForTimeout(500);
   await page.reload();
@@ -72,4 +72,27 @@ test('search client reuses worker and transfers no unchanged bodies between page
     } finally { client.dispose(); window.Worker = NativeWorker; }
   });
   expect(result).toEqual({ created: 1, first: 125, next: 150, changed: 1, patches: [1, 0, 1] });
+});
+
+test('search panel keeps its worker alive across close and reopen', async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    let created = 0;
+    class TrackedWorker extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) { super(url, options); created++; }
+    }
+    window.Worker = TrackedWorker as typeof Worker;
+    Object.defineProperty(window, '__searchWorkerCount', { get: () => created });
+  });
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="book-menu"]').click();
+  await page.locator('[data-action="book-search"]').click();
+  await page.locator('#query').fill('林舟');
+  await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="book-menu"]').click();
+  await page.locator('[data-action="book-search"]').click();
+  await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
+  expect(await page.evaluate(() => (window as typeof window & { __searchWorkerCount: number }).__searchWorkerCount)).toBe(1);
 });

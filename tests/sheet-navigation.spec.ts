@@ -64,7 +64,7 @@ test('settings tabs and directory reversal replace their view without adding bac
   await page.locator('[data-action="chapter:0"]').click();
   await page.locator('[data-action="tool:settings"]').click();
   await page.locator('[data-action="settings:字体"]').click();
-  await page.locator('[data-action="settings:基础"]').click();
+  await page.locator('[data-action="settings:版面"]').click();
   await page.locator('[data-action="grid"]').click();
   await page.locator('[data-pref="grid"]').check();
   await page.getByRole('button', { name: '返回上一级', exact: true }).click();

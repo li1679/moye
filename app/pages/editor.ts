@@ -3,11 +3,12 @@ import { Keyboard } from '@capacitor/keyboard';
 import { $, $$, esc } from '../core/dom';
 import { ib, toolMenu, tools } from '../kit/ui';
 import { onLongPress } from '../kit/long-press';
+import { attachFastScroll } from '../kit/fast-scroll';
 import { ChapterHistory, type HistoryHint } from '../features/editor/history';
 import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
 import { extractInputEdit, type InputEdit } from '../features/editor/input-session';
 import { createWordCountClient, type WordCountClient } from '../features/editor/word-count';
-import { editorText } from '../features/editor/dom-text';
+import { editorText, editorTextPoint } from '../features/editor/dom-text';
 import { captureAnchor, restoreAnchor, captureSelection, restoreSelection } from '../features/editor/positions';
 import { rememberBookChange } from '../features/editor/book-undo';
 import { saveNow } from '../data/autosave';
@@ -20,7 +21,7 @@ import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
 // 2.9 搬走的部分由组装入口注入：搜索面板。
 export type EditorHelpers = {
-  search(scope?: string, replace?: boolean): void;
+  search(scope?: string, replace?: boolean, initial?: string): void;
   searchHit(): { chapterId: string; offset: number } | null;
   afterReplace(): void;
 };
@@ -58,6 +59,11 @@ function isLineType(value: string): value is Prefs['lineType'] {
   let wordCountRevision = 0;
   let pendingFormat: PendingChange[] | null = null;
   let pendingReplace: PendingChange[] | null = null;
+  let findTimer: ReturnType<typeof setTimeout> | undefined;
+  let findOffsets: number[] = [];
+  let findIndex = -1;
+  let findStartOffset = 0;
+  let lastFindQuery = '';
 
   function installToolbarInteractions() {
     const bars = $$<HTMLElement>('.editor-tools, .editor-bottom', ctx.app);
@@ -135,27 +141,101 @@ function isLineType(value: string): value is Prefs['lineType'] {
     scheduleWordCount(value);
   }
 
-  function locateText(offset: number, length = 0, selector = '.manuscript') {
+  function clearFindHighlight() {
+    if (globalThis.CSS?.highlights) CSS.highlights.delete('search-match');
+  }
+
+  function locateText(offset: number, length = 0, options: { focus?: boolean; selector?: string } = {}) {
+    const selector = options.selector ?? '.manuscript';
     const element = state.page === 'reader' && selector === '.manuscript' ? ctx.reader.session()?.body() : $(selector);
     if (!element?.firstChild) return;
-    // 渲染或命令之后调用；编辑器正文只有一个文本节点。
-    const node = element.firstChild;
-    if (node.nodeType !== Node.TEXT_NODE) return;
+    const start = editorTextPoint(element, Math.min(offset, editorText(element).length));
+    const end = editorTextPoint(element, Math.min(offset + length, editorText(element).length));
+    if (!start || !end) return;
     const range = document.createRange();
-    range.setStart(node, Math.min(offset, node.textContent?.length ?? 0));
-    range.setEnd(node, Math.min(offset + length, node.textContent?.length ?? 0));
-    if (state.page === 'editor') element.focus({ preventScroll: true });
-    const selection = getSelection();
-    if (selection) {
-      selection.removeAllRanges();
-      selection.addRange(range);
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    if (options.focus !== false) {
+      if (state.page === 'editor') element.focus({ preventScroll: true });
+      const selection = getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
     }
-    if (globalThis.CSS?.highlights && globalThis.Highlight) {
-      CSS.highlights.clear();
-      if (length) CSS.highlights.set('search-match', new Highlight(range));
-    }
+    clearFindHighlight();
+    if (globalThis.CSS?.highlights && globalThis.Highlight && length) CSS.highlights.set('search-match', new Highlight(range));
     const scroll = $('.editor-scroll');
     if (scroll) scroll.scrollTop += range.getBoundingClientRect().top - scroll.getBoundingClientRect().top - scroll.clientHeight / 3;
+  }
+
+  function updateFindCount() {
+    const count = $maybeFind<HTMLElement>('.find-count');
+    if (count) count.textContent = findOffsets.length ? `${findIndex + 1}/${findOffsets.length}` : '0/0';
+  }
+
+  function $maybeFind<T extends Element>(query: string) {
+    return ctx.app.querySelector<T>(query);
+  }
+
+  function calculateFind(reset = false) {
+    clearTimeout(findTimer);
+    const input = $maybeFind<HTMLInputElement>('.find-bar input');
+    if (!input) return;
+    const query = input.value;
+    lastFindQuery = query;
+    findOffsets = [];
+    if (query) {
+      const body = needChapter(state).body;
+      let offset = 0;
+      while (findOffsets.length < 5000 && (offset = body.indexOf(query, offset)) >= 0) {
+        findOffsets.push(offset);
+        offset += Math.max(1, query.length);
+      }
+    }
+    if (reset) {
+      const after = findOffsets.findIndex(offset => offset >= findStartOffset);
+      findIndex = after >= 0 ? after : findOffsets.length ? 0 : -1;
+    } else if (findIndex >= findOffsets.length) {
+      findIndex = findOffsets.length - 1;
+    }
+    updateFindCount();
+    if (findIndex >= 0) locateText(findOffsets[findIndex], query.length, { focus: false });
+    else clearFindHighlight();
+  }
+
+  function scheduleFind(reset = false) {
+    clearTimeout(findTimer);
+    findTimer = setTimeout(() => calculateFind(reset), 150);
+  }
+
+  function stepFind(direction: 1 | -1) {
+    if (!findOffsets.length) calculateFind(true);
+    if (!findOffsets.length) return;
+    findIndex = (findIndex + direction + findOffsets.length) % findOffsets.length;
+    updateFindCount();
+    const query = $maybeFind<HTMLInputElement>('.find-bar input')?.value ?? '';
+    locateText(findOffsets[findIndex], query.length, { focus: false });
+  }
+
+  function closeFindBar() {
+    clearTimeout(findTimer);
+    $maybeFind('.find-bar')?.remove();
+    clearFindHighlight();
+    findOffsets = [];
+    findIndex = -1;
+  }
+
+  function openFindBar() {
+    ctx.closeSheet();
+    const existing = $maybeFind<HTMLInputElement>('.find-bar input');
+    if (existing) { existing.focus(); return; }
+    const body = $('.manuscript');
+    findStartOffset = captureSelection(body, 'body')?.end ?? findStartOffset;
+    $('.editor > .topbar').insertAdjacentHTML('afterend', `<div class="find-bar" role="search"><input aria-label="查找本章" placeholder="查找本章" enterkeyhint="search" value="${esc(lastFindQuery)}"><span class="find-count">0/0</span>${ib('chevron-up', '上一处', 'find-prev')}${ib('chevron-down', '下一处', 'find-next')}${ib('replace', '替换', 'find-replace')}${ib('x', '关闭查找', 'find-close')}</div>`);
+    const input = $maybeFind<HTMLInputElement>('.find-bar input')!;
+    input.focus();
+    if (lastFindQuery) calculateFind(true);
   }
 
   async function applyFormat(all = false) {
@@ -195,6 +275,18 @@ function isLineType(value: string): value is Prefs['lineType'] {
     await saveNow(state);
     ctx.toast(kind === 'replace-one' ? '已替换这一处，可撤销' : '已替换本章全部匹配，可撤销');
   }
+  function insertChapterAfter() {
+    const b = needBook(state);
+    const index = state.chapter + 1;
+    const name = `第${index + 1}章`;
+    b.chapters.splice(index, 0, { id: crypto.randomUUID(), name, body: '' });
+    ctx.closeSheet();
+    ctx.dispose();
+    state.chapter = index;
+    ctx.render();
+    restoreSelection($('.editor-heading'), { start: 0, end: name.length, backward: false, field: 'name' }, true);
+  }
+
 
   function render() {
     ctx.dispose();
@@ -205,13 +297,21 @@ function isLineType(value: string): value is Prefs['lineType'] {
       return;
     }
     resetHistory(c.id ??= crypto.randomUUID());
-    ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count">本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
+    ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count"><span class="save-dot" data-state="saved" aria-hidden="true"></span>本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
+    const saveDot = $<HTMLElement>('.save-dot');
+    const updateSaveDot = (event: Event) => {
+      if (event instanceof CustomEvent && ['dirty', 'saving', 'saved', 'failed'].includes(event.detail)) saveDot.dataset.state = event.detail;
+    };
+    document.addEventListener('moye:save-state', updateSaveDot);
+    ctx.onDispose(() => document.removeEventListener('moye:save-state', updateSaveDot));
     applyAppearance(ctx);
     updateHistoryTools();
     installToolbarInteractions();
     $(".manuscript").textContent = c.body;
     $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
     const scroll = $(".editor-scroll");
+    $(".editor-heading").setAttribute('contenteditable', 'plaintext-only');
+    ctx.onDispose(attachFastScroll(scroll));
     c.id ??= crypto.randomUUID();
     const body = $(".manuscript"), title = $(".editor-heading");
     const previous = state.editing[c.id];
@@ -241,6 +341,10 @@ function isLineType(value: string): value is Prefs['lineType'] {
     ctx.onDispose(() => {
       pendingInput = null;
       clearTimeout(wordCountTimer);
+      clearTimeout(findTimer);
+      clearFindHighlight();
+      findOffsets = [];
+      findIndex = -1;
       wordCountRevision++;
       wordCountClient?.dispose();
       wordCountClient = null;
@@ -272,6 +376,11 @@ function isLineType(value: string): value is Prefs['lineType'] {
       if (event.target instanceof HTMLElement && event.target.matches('.manuscript, .editor-heading')) finishComposition();
     });
     document.addEventListener('keydown', (event) => {
+      if (event.target instanceof HTMLInputElement && event.target.matches('.find-bar input') && event.key === 'Enter') {
+        event.preventDefault();
+        stepFind(1);
+        return;
+      }
       if (!(event.target instanceof HTMLElement) || event.isComposing || !event.target.matches('.manuscript[contenteditable], .editor-heading[contenteditable]') || !(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
       if (key !== 'z' && key !== 'y') return;
@@ -290,6 +399,19 @@ function isLineType(value: string): value is Prefs['lineType'] {
       if (!(event.target instanceof HTMLElement)) return;
       const element = event.target;
       if (!element.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) return;
+      if (element.matches('.editor-heading')) {
+        if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak') {
+          event.preventDefault();
+          restoreSelection($('.manuscript'), { start: 0, end: 0, backward: false, field: 'body' }, true);
+          return;
+        }
+        if (event.inputType === 'insertFromPaste') {
+          event.preventDefault();
+          const text = event.dataTransfer?.getData('text/plain').replace(/\s*[\r\n]+\s*/g, ' ') ?? '';
+          document.execCommand('insertText', false, text);
+          return;
+        }
+      }
       if (['historyUndo', 'historyRedo'].includes(event.inputType)) {
         event.preventDefault();
         ctx.action('tool:' + (event.inputType === 'historyUndo' ? 'undo' : 'redo')).catch(error => ctx.toast(String(error)));
@@ -306,6 +428,11 @@ function isLineType(value: string): value is Prefs['lineType'] {
     document.addEventListener('input', (e) => {
       if (!(e.target instanceof HTMLElement)) return;
       const el = e.target;
+      if (el instanceof HTMLInputElement && el.matches('.find-bar input')) {
+        findStartOffset = captureSelection($('.manuscript'), 'body')?.end ?? findStartOffset;
+        scheduleFind(true);
+        return;
+      }
       const pending = pendingInput;
       pendingInput = null;
       if (el.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) {
@@ -321,7 +448,10 @@ function isLineType(value: string): value is Prefs['lineType'] {
         }
         if (!composition) history.record(target, field, before, value, hint);
         target[field] = value;
-        if (field === 'body') scheduleWordCount(value);
+        if (field === 'body') {
+          scheduleWordCount(value);
+          if ($maybeFind('.find-bar')) scheduleFind(false);
+        }
         updateHistoryTools();
       }
       if (el instanceof HTMLInputElement && el.dataset.color) {
@@ -340,7 +470,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
         applyAppearance(ctx);
       }
       if (el instanceof HTMLSelectElement && el.id === 'font-family') {
-        state.prefs.fontFamily = el.value === '宋体' ? '宋体' : '系统默认';
+        state.prefs.fontFamily = el.value === '宋体' || el.value === '黑体' ? el.value : '系统默认';
         applyAppearance(ctx);
       }
     });
@@ -386,15 +516,29 @@ function isLineType(value: string): value is Prefs['lineType'] {
       ctx.settings.syncPreferenceControls();
     },
     'editor-menu'() {
+      findStartOffset = captureSelection($('.manuscript'), 'body')?.end ?? findStartOffset;
       ctx.openSheet(
         "更多工具",
         toolMenu([
           ["search", "本章搜索", "chapter-search"],
+          ["file-plus-2", "新建下一章", "insert-chapter-after"],
           ["file-output", "导出文档", "export"],
           ["sliders-horizontal", "页面布局", "layout"],
           ["rows-3", "网格线", "grid"],
         ]),
       );
+    },
+    'chapter-search'() {
+      if (state.page === 'editor') openFindBar();
+      else helpers.search('chapter');
+    },
+    'find-prev'() { stepFind(-1); },
+    'find-next'() { stepFind(1); },
+    'find-close'() { closeFindBar(); },
+    'find-replace'() {
+      const query = $maybeFind<HTMLInputElement>('.find-bar input')?.value ?? lastFindQuery;
+      closeFindBar();
+      helpers.search('chapter', true, query);
     },
     async tool(arg) {
       if (arg === "settings") {
@@ -407,6 +551,10 @@ function isLineType(value: string): value is Prefs['lineType'] {
       }
       if (arg === "find") {
         helpers.search("chapter", true);
+        return;
+      }
+      if (arg === "search") {
+        openFindBar();
         return;
       }
       ctx.closeSheet();
@@ -443,7 +591,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
         scheduleWordCount(needChapter(state).body);
         updateHistoryTools();
         if (document.activeElement?.matches('.manuscript[contenteditable], .editor-heading[contenteditable]')) {
-          locateText(edit.offset, 0, edit.field === 'body' ? '.manuscript' : '.editor-heading');
+          locateText(edit.offset, 0, { selector: edit.field === 'body' ? '.manuscript' : '.editor-heading' });
         }
         return;
       }
@@ -453,8 +601,12 @@ function isLineType(value: string): value is Prefs['lineType'] {
       }
       if (arg === "previous" || arg === "next") {
         const next = state.chapter + (arg === "next" ? 1 : -1);
-        if (next < 0 || next >= needBook(state).chapters.length) {
-          ctx.toast(arg === "next" ? "已经是最后一章" : "已经是第一章");
+        if (next >= needBook(state).chapters.length) {
+          insertChapterAfter();
+          return;
+        }
+        if (next < 0) {
+          ctx.toast("已经是第一章");
           return;
         }
         ctx.dispose();
@@ -462,6 +614,9 @@ function isLineType(value: string): value is Prefs['lineType'] {
         ctx.render();
         return;
       }
+    },
+    'insert-chapter-after'() {
+      insertChapterAfter();
     },
     replace: applyReplace,
     'replace-one': applyReplace,

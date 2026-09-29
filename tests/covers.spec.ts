@@ -55,6 +55,6 @@ test('无图封面按书籍 id 稳定分配纸墨题签', async ({ page }) => {
   await expect(covers.nth(0).locator('small')).toHaveText('林间 著');
 
   await page.locator('[data-action="new-book"]').click();
-  await expect(page.locator('.cover-picker .cover-label strong')).toHaveText('书籍名称');
+  await expect(page.locator('.cover-picker .cover-label strong')).toHaveText('书名');
   await expect(page.locator('.cover-picker .cover-seal')).toHaveCount(1);
 });

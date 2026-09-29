@@ -11,13 +11,14 @@ export type RouterPages = {
   prepare(): void;    // 每次渲染前的准备：编辑历史与拖拽排序实例的清理
 };
 
-type Snapshot = { key: string; list: string; depth: number; tab: string; book: number | null; chapter: number };
+type Snapshot = { key: string; list: string; depth: number; page: string; tab: string; book: number | null; chapter: number };
 
 // 渲染总入口：按当前页面分派，前后各取一次快照，做页面切换动画。
 // 动画只做视觉过渡，不读写任何业务状态。
 export function createRouter(ctx: Ctx, pages: RouterPages) {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let last: Snapshot | null = null;
+  const chapterScroll = new Map<number, number>();
 
   function pageKey(): string {
     const state = ctx.state;
@@ -40,6 +41,7 @@ export function createRouter(ctx: Ctx, pages: RouterPages) {
     return {
       key: pageKey(),
       list: `${state.view}:${state.batch}:${state.chapterBatch}`,
+      page: state.page,
       depth: depth(),
       tab: state.tab,
       book: state.book,
@@ -65,7 +67,7 @@ export function createRouter(ctx: Ctx, pages: RouterPages) {
     setTimeout(() => shell.classList.remove('page-in', 'page-' + dir), 500);
   }
 
-  function doRender() {
+  function doRender(previous: Snapshot | null) {
     const state = ctx.state;
     const pending = currentBookUndo();
     if (pending && (state.page === 'home' || pending.bookId !== state.book)) clearBookUndo();
@@ -80,21 +82,29 @@ export function createRouter(ctx: Ctx, pages: RouterPages) {
     document.documentElement.style.removeProperty('--paper');
     if (state.page === 'chapters') {
       pages.chapters();
+      const bookId = state.book;
+      const fromEditor = previous?.page === 'editor' && previous.book === bookId;
+      requestAnimationFrame(() => {
+        if (bookId !== null) window.scrollTo({ top: chapterScroll.get(bookId) ?? 0 });
+        if (!fromEditor) return;
+        const row = $<HTMLElement>(`[data-action="chapter:${state.chapter}"]`);
+        row.classList.add('just-edited');
+        const rect = row.getBoundingClientRect();
+        if (rect.top < 0 || rect.bottom > innerHeight) row.scrollIntoView({ block: 'center' });
+        setTimeout(() => row.classList.remove('just-edited'), 1200);
+      });
       return;
     }
     pages.home();
   }
 
   function render() {
-    if (reduce.matches) {
-      last = null;
-      doRender();
-      return;
-    }
     const before = last;
+    if (before?.page === 'chapters' && before.book !== null) chapterScroll.set(before.book, window.scrollY);
     const old = ctx.app.firstElementChild;
-    doRender();
+    doRender(before);
     last = snapshot();
+    if (reduce.matches) return;
     if (before) animate(before, last, old);
   }
 
