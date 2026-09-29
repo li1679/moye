@@ -61,6 +61,14 @@ test.describe('墨页 UI refinement', () => {
     await expect(page.locator('.home')).toHaveCSS('background-color', 'rgb(27, 26, 24)');
   });
 
+  test('serves the generated Moye seal as the favicon', async ({ page, request }) => {
+    await page.goto('/');
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/brand/moye.svg');
+    const response = await request.get('/brand/moye.svg');
+    expect(response.ok()).toBe(true);
+    expect(await response.text()).toContain('viewBox="0 0 108 108"');
+  });
+
   test('marks the editor top toolbar as overflowing at 360px', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await openEditor(page);

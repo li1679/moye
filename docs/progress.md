@@ -57,7 +57,7 @@
 
 ## 第 3 批
 - [x] 3.1 设计变量与样式重写（新建 kit/tokens.css、base.css、components.css；styles.css 按页面分节重写并删除旧覆盖层、旧变量和指定死选择器；目录当前章改用 .chapter-row.current + aria-current；附录 N 的通用控件最终视觉规格随重写提前落地，3.4 留待专项核验；四个 CSS 共 558 行，低于 1550 行上限；typecheck 0 错，95 用例全部通过）　- [x] 3.2 图标（新建 kit/icons.ts，适配 lucide 0.468 旧 IconNode 结构并缓存直接输出 SVG；删除 ui/icons.ts 与全部二次渲染调用；替换排版/目录/网格线/底部导航图标；章节单选仅更新目标行，新增菜单开关不重建章节 SVG 的回归用例；typecheck 0 错，96 用例全部通过）　- [x] 3.3 封面（coverTone 对书籍 id 做 FNV-1a 32 位哈希并映射 8 组封面色；无图封面改为右上题签、竖排书名、朱砂印章和作者，有图封面行为不变；新建表单无 id 可正常预览；新增确定性映射与结构测试；typecheck 0 错，97 用例全部通过）　- [x] 3.4 通用控件（核验 3.1 已落地的通栏底部导航、24×2 朱砂指示线、无把手纸色弹层、墨底纸字主按钮、危险按钮、文字按钮、并排 sheet-actions 和墨色提示条；新增计算样式测试，typecheck 0 错，98 用例全部通过）
-- [x] 3.5 深色外壳（tokens.css 提供完整 light/dark 纸墨变量并启用 color-scheme；index.html 增加 light/dark 两条 theme-color；新增 dark media 下 .home 为 rgb(27, 26, 24) 的回归用例；typecheck 0 错，99 用例全部通过）　- [x] 3.6 配色与字号（新装默认纸/字色改为 #f6f1e7/#1f1d1a，阅读日夜默认同步更新且不迁移已有设置；编辑器与阅读器使用独立纸墨色板及 5 组预设，删除旧默认背景与 theme-light/theme-dark；新增 WCAG contrastRatio 和低于 4.5:1 的原地提示；最小字号扫描通过；typecheck 0 错，100 个用例全部通过）　- [x] 3.7 工具栏（编辑器上下工具栏按实际宽度维护 overflowing/at-end 并显示渐隐；新增通用 onLongPress，移动超过 8px 或提前抬起取消，触发后吞掉 click；编辑器和布局工具图标长按显示 aria-label；新增 360px 溢出与长按撤销测试；typecheck 0 错，102 个用例全部通过；四个 CSS 共 560 行）　- [ ] 3.8 品牌与启动页　- [ ] 3.9 本批收尾
+- [x] 3.5 深色外壳（tokens.css 提供完整 light/dark 纸墨变量并启用 color-scheme；index.html 增加 light/dark 两条 theme-color；新增 dark media 下 .home 为 rgb(27, 26, 24) 的回归用例；typecheck 0 错，99 用例全部通过）　- [x] 3.6 配色与字号（新装默认纸/字色改为 #f6f1e7/#1f1d1a，阅读日夜默认同步更新且不迁移已有设置；编辑器与阅读器使用独立纸墨色板及 5 组预设，删除旧默认背景与 theme-light/theme-dark；新增 WCAG contrastRatio 和低于 4.5:1 的原地提示；最小字号扫描通过；typecheck 0 错，100 个用例全部通过）　- [x] 3.7 工具栏（编辑器上下工具栏按实际宽度维护 overflowing/at-end 并显示渐隐；新增通用 onLongPress，移动超过 8px 或提前抬起取消，触发后吞掉 click；编辑器和布局工具图标长按显示 aria-label；新增 360px 溢出与长按撤销测试；typecheck 0 错，102 个用例全部通过；四个 CSS 共 560 行）　- [x] 3.8 品牌与启动页（按附录 P 生成 Web/Android 墨字方印并保留脚本；adaptive icon、Android 12 启动主题与 SplashScreen API 已接入；删除旧品牌图、15 张 launcher PNG、11 张 splash 和两个旧 drawable；新增 favicon 资源测试；typecheck、Web build、103 个用例及 Android XML 检查通过；cap sync 通过，assembleDebug 因本机仅有 JDK 17 而未完成）　- [ ] 3.9 本批收尾
 
 ## 第 4 批
 - [ ] 4.1 小问题合集　- [ ] 4.2 导航、设置页、合并搜索　- [ ] 4.3 设置分类　- [ ] 4.4 目录
@@ -76,8 +76,9 @@
 ## 发现的问题
 （不在本方案范围内、但值得以后处理的问题）
 - 工作区不是 git 克隆（无 .git），已按方案 0.2.3 的本地合并流程初始化仓库；无 gh/推送权限，各批完成后在本地合并到 main，未推送。
-- 本机 JDK 17，方案要求 JDK 21；安卓构建任务（0.4、3.8、5.5 等）以 CI 为准，本地未验证。
+- 本机 JDK 17，方案要求 JDK 21；3.8 已实际运行 `npx cap sync android` 成功，`:app:assembleDebug` 在 Java toolchain 解析阶段确认因缺 Java 21 失败，未进入编译；安卓构建仍需 CI/JDK 21 验证。
 - moye-main 基线与方案的差异：测试总数 78（方案写 77，多出的用例在 pickers.spec.ts）；prototype.js 1623 行、styles.css 2353 行与方案一致。
 
 ## 阻塞
 （现象 / 已尝试的办法 / 需要用户决定的问题）
+- 3.8 Android 调试包：Gradle 找不到 languageVersion=21 的 Java 安装，且仓库未配置 toolchain 自动下载；Web 构建、资源 XML 与引用已通过本地检查。
