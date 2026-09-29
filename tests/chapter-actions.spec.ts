@@ -73,7 +73,7 @@ test('management selects entire rows without replacing footer and leaves last ch
   await expect(row).toHaveAttribute('aria-pressed', 'true');
   await row.click();
   await expect(row).toHaveAttribute('aria-pressed', 'false');
-  expect(await row.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 255, 255)');
+  expect(await row.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await page.locator('.chapter-batch-footer').evaluate(el => getComputedStyle(el).backgroundColor));
   expect(await footer!.evaluate(el => el === document.querySelector('.chapter-batch-footer'))).toBe(true);
   await page.locator('[data-action="select-all-chapters"]').click();
   await expect(page.locator('[aria-pressed="true"][data-chapter-index]')).toHaveCount(3);

@@ -16,7 +16,7 @@ export function openDirectory(ctx: Ctx, reverse = false): void {
     chapters
       .map(
         ({ c, i }) =>
-          `<button class="chapter-row" data-action="jump-chapter:${i}"><div class="chapter-info"><strong ${i === state.chapter ? 'style="color:var(--accent)"' : ''}>${esc(c.name)}</strong><small>${wordsOf(c)} 字</small></div>${i === state.chapter ? icon('check') : ''}</button>`,
+          `<button class="chapter-row ${i === state.chapter ? 'current' : ''}" data-action="jump-chapter:${i}" ${i === state.chapter ? 'aria-current="true"' : ''}><div class="chapter-info"><strong>${esc(c.name)}</strong><small>${wordsOf(c)} 字</small></div>${i === state.chapter ? icon('check') : ''}</button>`,
       )
       .join(''),
     {
