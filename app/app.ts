@@ -1,4 +1,3 @@
-import { renderIcons as icons } from './ui/icons';
 import { createSheets, type SheetOptions } from './ui/sheets';
 import { persistState } from './data/autosave';
 import { createTxtFlows } from './features/txt/flows';
@@ -37,7 +36,7 @@ const book = () => bookOf(state);
 const txtFlows = createTxtFlows({ state, openSheet, closeSheet, render: () => render(), toast });
 const backupFlows = createBackupFlows({ state, openSheet, prepare: () => ctx.dispose() });
 const chapter = () => chapterOf(state);
-const panels = createSheets(sheet, { escape: esc, button: ib, icons, restored() {
+const panels = createSheets(sheet, { escape: esc, button: ib, restored() {
   const gridStatus = $('[data-action="grid"] .row-value', sheet);
   if (gridStatus) gridStatus.textContent = state.prefs.grid ? '已开启' : '已关闭';
   syncPreferenceControls();

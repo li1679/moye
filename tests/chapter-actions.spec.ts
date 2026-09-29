@@ -32,6 +32,16 @@ test('dragging a scrolled chapter list retains viewport and persists order', asy
   await expect(page.locator('[data-action="chapter:13"] strong')).toHaveText(oldTitle);
 });
 
+test('opening and closing the book menu keeps chapter svg nodes', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  const first = page.locator('.chapter-list .chapter-row svg').first();
+  const node = await first.elementHandle();
+  await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  expect(await node!.evaluate(svg => svg === document.querySelector('.chapter-list .chapter-row svg'))).toBe(true);
+});
+
 test('chapter swipe reveals deletion, cancel preserves and confirm deletes', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();

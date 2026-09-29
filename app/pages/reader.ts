@@ -1,6 +1,5 @@
 import { $, esc } from '../core/dom';
 import { icon, ib } from '../kit/ui';
-import { renderIcons as icons } from '../ui/icons';
 import { mountReader } from '../features/reader/continuous';
 import { applyAppearance } from '../features/appearance';
 import { needBook } from '../core/library';
@@ -32,12 +31,10 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
     const c = ctx.chapter();
     if (!c) {
       ctx.app.innerHTML = `<main class="app-shell editor reader"><header class="topbar">${ib("chevron-left", "返回阅读书架", "home")}<div class="title">${esc(ctx.book()?.name)}</div></header><div class="empty">暂无章节</div></main>`;
-      icons();
       return;
     }
     const b = needBook(state);
-    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"><div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div><h1 class="editor-heading">${esc(c.name)}</h1><div class="manuscript" data-placeholder="本章暂无正文">${esc(c.body)}</div></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-tree")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
-    icons();
+    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"><div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div><h1 class="editor-heading">${esc(c.name)}</h1><div class="manuscript" data-placeholder="本章暂无正文">${esc(c.body)}</div></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
     applyAppearance(ctx);
     $(".manuscript").textContent = c.body;
     const scroll = $(".editor-scroll");
@@ -102,7 +99,6 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       Object.assign(p, themes[dark ? 'day' : 'night']);
       applyAppearance(ctx);
       $('[data-action="night"]').innerHTML = nightLabel();
-      icons();
     },
     'reader-settings'() {
       ctx.settings.readerSettings();

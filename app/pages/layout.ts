@@ -1,6 +1,5 @@
 import { $ } from '../core/dom';
 import { icon, ib, tools } from '../kit/ui';
-import { renderIcons as icons } from '../ui/icons';
 import { TOOL_IDS } from '../data/schema';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
@@ -27,7 +26,6 @@ export function createLayoutPage(ctx: Ctx): PageModule {
 
   function renderLayout() {
     ctx.app.innerHTML = `<main class="app-shell editor layout-editor"><header class="layout-header">${ib("chevron-left", "完成布局", "finish-layout")}<span>页面布局</span><button class="text-action" data-action="reset-layout">重置</button><button class="text-action" data-action="finish-layout">完成</button></header><div class="layout-top">${layoutToolbar("top")}</div><div class="layout-blank" aria-label="正文预留区域"></div><div class="layout-bottom">${layoutToolbar("bottom")}</div></main>`;
-    icons();
   }
 
   function slotPicker(where: 'top' | 'bottom', index: number) {

@@ -1,8 +1,9 @@
 import type { SheetOptions } from './sheets';
+import type { IconName } from '../kit/icons';
 import type { Prefs, ReadPrefs } from '../data/schema';
 export type EditorPreferences = Prefs;
 export type ReaderPreferences = ReadPrefs;
-type Context = { state: { prefs: EditorPreferences; readPrefs: ReaderPreferences; settingTab: string }; openSheet: (title: string, body: string, options?: SheetOptions) => void; icon: (name: string) => string };
+type Context = { state: { prefs: EditorPreferences; readPrefs: ReaderPreferences; settingTab: string }; openSheet: (title: string, body: string, options?: SheetOptions) => void; icon: (name: IconName) => string };
 const inkColors = ['#292d30','#85a8c1','#509499','#6faab4','#527db3','#7c6854','#527b80','#6979ad','#b55353','#8bb98a','#554f43','#aa537c','#64727d','#c2a773'];
 const paperColors = ['#ffffff','#f4f5f5','#eff7f7','#dce8f4','#f2e6d4','#dcead8','#e8dfd0','#e7e4f2','#f5e9ed','#e4f3ee','#f2dfe1','#d9e9eb'];
 const tabs = ['基础','字体','排版','主题'];

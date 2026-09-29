@@ -2,7 +2,6 @@ import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { $, $$, esc } from '../core/dom';
 import { ib, toolMenu, tools } from '../kit/ui';
-import { renderIcons as icons } from '../ui/icons';
 import { ChapterHistory, type HistoryHint } from '../features/editor/history';
 import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
 import { extractInputEdit, type InputEdit } from '../features/editor/input-session';
@@ -179,7 +178,6 @@ function isLineType(value: string): value is Prefs['lineType'] {
     }
     resetHistory(c.id ??= crypto.randomUUID());
     ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count">本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
-    icons();
     applyAppearance(ctx);
     updateHistoryTools();
     $(".manuscript").textContent = c.body;
@@ -373,7 +371,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
           ["search", "本章搜索", "chapter-search"],
           ["file-output", "导出文档", "export"],
           ["sliders-horizontal", "页面布局", "layout"],
-          ["list-minus", "网格线", "grid"],
+          ["rows-3", "网格线", "grid"],
         ]),
       );
     },

@@ -1,7 +1,6 @@
 import { $ } from '../core/dom';
 import { icon } from '../kit/ui';
 import { Capacitor, registerPlugin } from '@capacitor/core';
-import { renderIcons as icons } from '../ui/icons';
 import { nav } from './shelf';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
@@ -10,7 +9,6 @@ export function createMePage(ctx: Ctx): PageModule {
 
   function render() {
     ctx.app.innerHTML = `<main class="app-shell home"><header class="topbar"><h1>我的</h1></header><section class="page-body profile"><div class="profile-intro"><div class="avatar"><img src="/brand/moye.svg" alt="" width="48" height="48"></div><div><h2>墨页</h2><p class="muted">本地阅读，随心改文</p></div></div><button class="row" data-action="cache"><span class="row-label">${icon('eraser')}清理缓存</span>${icon('chevron-right')}</button><button class="row" data-action="about"><span class="row-label">${icon('info')}关于</span>${icon('chevron-right')}</button></section>${nav(state.tab)}</main>`;
-    icons();
   }
 
   const actions: Record<string, ActionHandler> = {
