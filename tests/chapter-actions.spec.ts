@@ -54,6 +54,24 @@ test('directory centers the current chapter and jumps by chapter number', async 
   await expect(page.locator('.editor-heading')).toHaveText('第10章');
 });
 
+test('returning from editing restores chapter list position and highlights the chapter', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '书架菜单', exact: true }).click();
+  await page.locator('[data-action="import"]').click();
+  const text = Array.from({ length: 60 }, (_, i) => `第${i + 1}章\n正文 ${i + 1}。\n`).join('');
+  await page.locator('#txt-file').setInputFiles({ name: '章节位置.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await expect(page.locator('#txt-confirm')).toBeEnabled();
+  await page.locator('#txt-confirm').click();
+  const chapter = page.locator('[data-action="chapter:39"]');
+  await chapter.scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => scrollY);
+  await chapter.click();
+  await page.getByRole('button', { name: '返回目录', exact: true }).click();
+  await expect(page.locator('[data-action="chapter:39"]')).toHaveClass(/just-edited/);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
+  expect(Math.abs(await page.evaluate(() => scrollY) - before)).toBeLessThan(10);
+});
+
 test('opening and closing the book menu keeps chapter svg nodes', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();

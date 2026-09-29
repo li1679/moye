@@ -88,7 +88,7 @@ dialog[open]::backdrop { background: var(--c-backdrop); animation: backdrop-in .
 .bottom-nav button { position: relative; display: flex; min-width: 76px; padding: var(--sp-2); flex-direction: column; align-items: center; gap: var(--sp-1); color: var(--c-ink-2); font-size: var(--fs-s); }
 .bottom-nav button.active { color: var(--c-ink); font-weight: 700; }
 .bottom-nav button.active::before { content: ''; position: absolute; top: -7px; left: 50%; width: 24px; height: 2px; background: var(--c-seal); transform: translateX(-50%); }
-.chapter-row.current { box-shadow: inset 3px 0 0 var(--c-seal); background: var(--c-press); }
+.chapter-row.current, .chapter-row.just-edited { box-shadow: inset 3px 0 0 var(--c-seal); background: var(--c-press); }
 .chapter-row.current strong { font-weight: 800; }
 .contrast-warning { color: var(--c-danger); font-size: var(--fs-s); }
 input[type="range"] { appearance: none; width: 100%; height: 24px; background: transparent; }
