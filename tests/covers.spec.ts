@@ -43,3 +43,18 @@ test('选图后压缩成不超过 480×640 的 JPEG', async ({ page }) => {
   expect(covers[0].startsWith('"data:image/jpeg')).toBe(true);
   expect(covers[0].length).toBeLessThan(200_000);
 });
+
+test('无图封面按书籍 id 稳定分配纸墨题签', async ({ page }) => {
+  await page.goto('/');
+  const covers = page.locator('.book .cover');
+  await expect(covers).toHaveCount(2);
+  await expect(covers.nth(0)).toHaveAttribute('style', /--cover-bg:var\(--cover-4\);--cover-ink:var\(--cover-4-ink\)/);
+  await expect(covers.nth(1)).toHaveAttribute('style', /--cover-bg:var\(--cover-5\);--cover-ink:var\(--cover-5-ink\)/);
+  await expect(covers.nth(0).locator('.cover-label strong')).toHaveText('雨停之后');
+  await expect(covers.nth(0).locator('.cover-seal')).toHaveCount(1);
+  await expect(covers.nth(0).locator('small')).toHaveText('林间 著');
+
+  await page.locator('[data-action="new-book"]').click();
+  await expect(page.locator('.cover-picker .cover-label strong')).toHaveText('书籍名称');
+  await expect(page.locator('.cover-picker .cover-seal')).toHaveCount(1);
+});

@@ -56,7 +56,7 @@
 - [x] 2.11 组装入口，删除 prototype.js　- [x] 2.12 清理　- [x] 2.13 本批收尾
 
 ## 第 3 批
-- [x] 3.1 设计变量与样式重写（新建 kit/tokens.css、base.css、components.css；styles.css 按页面分节重写并删除旧覆盖层、旧变量和指定死选择器；目录当前章改用 .chapter-row.current + aria-current；附录 N 的通用控件最终视觉规格随重写提前落地，3.4 留待专项核验；四个 CSS 共 558 行，低于 1550 行上限；typecheck 0 错，95 用例全部通过）　- [x] 3.2 图标（新建 kit/icons.ts，适配 lucide 0.468 旧 IconNode 结构并缓存直接输出 SVG；删除 ui/icons.ts 与全部二次渲染调用；替换排版/目录/网格线/底部导航图标；章节单选仅更新目标行，新增菜单开关不重建章节 SVG 的回归用例；typecheck 0 错，96 用例全部通过）　- [ ] 3.3 封面　- [ ] 3.4 通用控件
+- [x] 3.1 设计变量与样式重写（新建 kit/tokens.css、base.css、components.css；styles.css 按页面分节重写并删除旧覆盖层、旧变量和指定死选择器；目录当前章改用 .chapter-row.current + aria-current；附录 N 的通用控件最终视觉规格随重写提前落地，3.4 留待专项核验；四个 CSS 共 558 行，低于 1550 行上限；typecheck 0 错，95 用例全部通过）　- [x] 3.2 图标（新建 kit/icons.ts，适配 lucide 0.468 旧 IconNode 结构并缓存直接输出 SVG；删除 ui/icons.ts 与全部二次渲染调用；替换排版/目录/网格线/底部导航图标；章节单选仅更新目标行，新增菜单开关不重建章节 SVG 的回归用例；typecheck 0 错，96 用例全部通过）　- [x] 3.3 封面（coverTone 对书籍 id 做 FNV-1a 32 位哈希并映射 8 组封面色；无图封面改为右上题签、竖排书名、朱砂印章和作者，有图封面行为不变；新建表单无 id 可正常预览；新增确定性映射与结构测试；typecheck 0 错，97 用例全部通过）　- [ ] 3.4 通用控件
 - [ ] 3.5 深色外壳　- [ ] 3.6 配色与字号　- [ ] 3.7 工具栏　- [ ] 3.8 品牌与启动页　- [ ] 3.9 本批收尾
 
 ## 第 4 批
