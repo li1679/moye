@@ -1,10 +1,12 @@
 import { $, esc } from '../core/dom';
 import { icon } from '../kit/ui';
+import { attachFastScroll } from '../kit/fast-scroll';
 import { wordsOf } from './editor/text-tools';
 import { openChapter } from '../pages/chapters';
 import { needBook } from '../core/library';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
+let detachDirectoryFastScroll: (() => void) | null = null;
 // 目录面板：列出章节、正倒序切换、跳章。
 export function openDirectory(ctx: Ctx, reverse = false): void {
   const state = ctx.state;
@@ -27,7 +29,18 @@ export function openDirectory(ctx: Ctx, reverse = false): void {
       header: `<h2>目录</h2><button class="text-action" data-action="directory-sort">${icon('arrow-up-down')}${reverse ? '正序' : '倒序'}</button>`,
     },
   );
-  requestAnimationFrame(() => ctx.sheet.querySelector('.chapter-row.current')?.scrollIntoView({ block: 'center' }));
+  requestAnimationFrame(() => {
+    ctx.sheet.querySelector('.chapter-row.current')?.scrollIntoView({ block: 'center' });
+    detachDirectoryFastScroll?.();
+    const content = ctx.sheet.querySelector<HTMLElement>('.sheet-content');
+    if (!content) return;
+    const detach = attachFastScroll(content);
+    detachDirectoryFastScroll = detach;
+    ctx.sheet.addEventListener('close', () => {
+      if (detachDirectoryFastScroll === detach) detachDirectoryFastScroll = null;
+      detach();
+    }, { once: true });
+  });
 }
 
 export function createDirectory(ctx: Ctx): PageModule {

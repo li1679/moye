@@ -3,6 +3,7 @@ import { Keyboard } from '@capacitor/keyboard';
 import { $, $$, esc } from '../core/dom';
 import { ib, toolMenu, tools } from '../kit/ui';
 import { onLongPress } from '../kit/long-press';
+import { attachFastScroll } from '../kit/fast-scroll';
 import { ChapterHistory, type HistoryHint } from '../features/editor/history';
 import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
 import { extractInputEdit, type InputEdit } from '../features/editor/input-session';
@@ -310,6 +311,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
     $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
     const scroll = $(".editor-scroll");
     $(".editor-heading").setAttribute('contenteditable', 'plaintext-only');
+    ctx.onDispose(attachFastScroll(scroll));
     c.id ??= crypto.randomUUID();
     const body = $(".manuscript"), title = $(".editor-heading");
     const previous = state.editing[c.id];

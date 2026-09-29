@@ -49,6 +49,15 @@ test('directory centers the current chapter and jumps by chapter number', async 
     return rowRect.top >= contentRect.top && rowRect.bottom <= contentRect.bottom;
   });
   expect(currentVisible).toBe(true);
+  const fastScroll = page.locator('.directory-sheet .fast-scroll');
+  await expect(fastScroll).toHaveCount(1);
+  const handle = (await fastScroll.boundingBox())!;
+  const content = (await page.locator('.directory-sheet .sheet-content').boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, content.y + content.height - 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => page.locator('.directory-sheet .sheet-content').evaluate(element => Math.round(element.scrollHeight - element.clientHeight - element.scrollTop))).toBeLessThanOrEqual(2);
   await page.getByLabel('跳到第几章').fill('10');
   await page.locator('#directory-jump').evaluate((form: HTMLFormElement) => form.requestSubmit());
   await expect(page.locator('.editor-heading')).toHaveText('第10章');

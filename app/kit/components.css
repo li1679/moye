@@ -111,7 +111,9 @@ input[type="file"]::file-selector-button { min-height: 42px; padding: var(--sp-2
 .find-bar input:focus { border-color: var(--text); }
 .find-bar .find-count { flex: 0 0 5ch; color: color-mix(in srgb, var(--text) 65%, transparent); font-size: var(--fs-s); text-align: center; font-variant-numeric: tabular-nums; }
 .find-bar .icon { flex: 0 0 36px; width: 36px; height: 36px; }
-.fast-scroll { position: fixed; top: 50%; right: 0; z-index: 12; width: 24px; height: 44px; translate: 0 -50%; touch-action: none; }
+.fast-scroll { position: fixed; top: 50%; right: 0; z-index: 12; width: 24px; height: 44px; translate: 0 -50%; opacity: 0; touch-action: none; transition: opacity .18s var(--ease); }
+.fast-scroll.visible { opacity: 1; }
+.fast-scroll[hidden] { display: none; }
 .fast-scroll::after { content: ''; position: absolute; top: 0; right: var(--sp-2); width: 6px; height: 44px; border-radius: var(--r-s); background: var(--c-ink-3); opacity: .7; }
 .empty svg { width: 34px; height: 34px; margin-bottom: var(--sp-3); }
 .empty h2 { margin-bottom: var(--sp-1); color: var(--c-ink); }

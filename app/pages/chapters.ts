@@ -2,6 +2,7 @@ import Sortable from 'sortablejs';
 import { $, $$, $maybe, esc } from '../core/dom';
 import { icon, ib, toolMenu, cover } from '../kit/ui';
 import { onLongPress } from '../kit/long-press';
+import { attachFastScroll } from '../kit/fast-scroll';
 import { enableChapterSwipe } from '../features/editor/chapter-swipe';
 import { restoreSelection } from '../features/editor/positions';
 import { wordsOf, bookWords } from '../features/editor/text-tools';
@@ -61,6 +62,7 @@ export function createChaptersPage(ctx: Ctx, helpers: ChaptersHelpers): PageModu
       });
       ctx.onDispose(() => { chapterSort?.destroy(); chapterSort = null; });
     }
+    ctx.onDispose(attachFastScroll(window));
   }
 
   function reindexChapterRows() {
