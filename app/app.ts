@@ -104,6 +104,7 @@ ctx.editor = editorPage.editor;
 ctx.reader = readerPage.reader;
 const directoryModule = createDirectory(ctx);
 registerActions(directoryModule);
+directoryModule.install?.();
 // 组装层自己的三个动作：关闭弹层、提示条按钮、弹层返回。
 const handlers: Record<string, ActionHandler> = {
   close() {

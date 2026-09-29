@@ -145,6 +145,8 @@ dialog.directory-sheet { width: 100%; max-width: 100%; height: calc(var(--viewpo
 .directory-sheet .sheet-head h2 { text-align: left; padding-left: var(--sp-2); }
 .directory-sheet .text-action { display: flex; align-items: center; gap: var(--sp-1); }
 .directory-sheet .text-action svg { width: 18px; height: 18px; }
+.directory-jump { position: sticky; top: 0; z-index: 1; display: flex; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--c-line); background: var(--c-surface); }
+.directory-jump input { min-width: 0; flex: 1; }
 .profile { padding: var(--sp-5); }
 .profile-intro { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-2); padding: var(--sp-1) 0 var(--sp-6); border-bottom: 1px solid var(--c-line); }
 .avatar { display: grid; width: 58px; height: 58px; place-items: center; border: 1px solid var(--c-ink); border-radius: 50%; }

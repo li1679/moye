@@ -32,6 +32,28 @@ test('dragging a scrolled chapter list retains viewport and persists order', asy
   await expect(page.locator('[data-action="chapter:13"] strong')).toHaveText(oldTitle);
 });
 
+test('directory centers the current chapter and jumps by chapter number', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: '书架菜单', exact: true }).click();
+  await page.locator('[data-action="import"]').click();
+  const text = Array.from({ length: 60 }, (_, i) => `第${i + 1}章\n正文 ${i + 1}。\n`).join('');
+  await page.locator('#txt-file').setInputFiles({ name: '目录跳章.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await expect(page.locator('#txt-confirm')).toBeEnabled();
+  await page.locator('#txt-confirm').click();
+  await page.locator('[data-action="chapter:49"]').click();
+  await page.locator('[data-action="tool:directory"]').click();
+  await expect(page.locator('#directory-jump')).toBeVisible();
+  const currentVisible = await page.locator('#sheet .chapter-row.current').evaluate(row => {
+    const rowRect = row.getBoundingClientRect();
+    const contentRect = row.closest('.sheet-content')!.getBoundingClientRect();
+    return rowRect.top >= contentRect.top && rowRect.bottom <= contentRect.bottom;
+  });
+  expect(currentVisible).toBe(true);
+  await page.getByLabel('跳到第几章').fill('10');
+  await page.locator('#directory-jump').evaluate((form: HTMLFormElement) => form.requestSubmit());
+  await expect(page.locator('.editor-heading')).toHaveText('第10章');
+});
+
 test('opening and closing the book menu keeps chapter svg nodes', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();
