@@ -47,4 +47,10 @@ test.describe('墨页 UI refinement', () => {
     await expect(sheet.locator('.primary')).toHaveCSS('background-color', 'rgb(31, 29, 26)');
     await expect(sheet.locator('.primary')).toHaveCSS('color', 'rgb(251, 248, 242)');
   });
+
+  test('uses the dark paper color for the application shell', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/');
+    await expect(page.locator('.home')).toHaveCSS('background-color', 'rgb(27, 26, 24)');
+  });
 });
