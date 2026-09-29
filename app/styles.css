@@ -42,6 +42,7 @@ body { min-height: 100dvh; }
 .book:active .cover { translate: 0 2px; }
 .book-name { min-width: 0; overflow: hidden; font-size: var(--fs-m); font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .book small { font-size: var(--fs-xs); line-height: 1.7; font-variant-numeric: tabular-nums; }
+.book-progress { display: block; color: var(--c-ink-2); }
 .add-book { display: grid; align-self: start; width: 100%; max-width: 160px; aspect-ratio: 3 / 4; place-items: center; border: 1px dashed var(--c-edge); border-radius: var(--r-s); color: var(--c-ink-3); }
 .add-book:hover, .add-book:active { border-color: var(--c-ink); color: var(--c-ink); background: none; }
 .add-book svg { width: 28px; height: 28px; }

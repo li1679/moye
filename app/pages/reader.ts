@@ -41,7 +41,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
     b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
     readerSession = mountReader(scroll, b.chapters, state.chapter, state.reading[b.id], (position, progress) => {
       state.chapter = position.chapter;
-      state.reading[b.id] = position;
+      state.reading[b.id] = { ...position, percent: progress, at: Date.now() };
       $('#progress-value').textContent = progress + '%';
       $<HTMLInputElement>('.reader-progress input').value = String(progress);
       $('.reader-footer span').textContent = b.chapters[position.chapter].name;

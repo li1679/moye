@@ -43,7 +43,7 @@ export type ReadPrefs = {
 };
 
 export type Toolbars = { top: (ToolId | null)[]; bottom: (ToolId | null)[] };
-export type ReadingPosition = { chapter: number; chapterId?: string; scroll: number; anchor?: Anchor };   // 第 4 批（4.10）加 percent、at，给阅读书架用
+export type ReadingPosition = { chapter: number; chapterId?: string; scroll: number; anchor?: Anchor; percent?: number; at?: number };   // percent 和 at 给阅读书架显示进度、最近阅读排序用
 export type EditingPosition = { scroll: number; selection?: SelectionPosition; anchor?: Anchor };
 export type Session = { tab: 'edit' | 'read' | 'me'; page: 'home' | 'chapters' | 'editor' | 'reader'; folder: number | null; book: number | null; chapter: number };
 
@@ -289,7 +289,11 @@ export function validateLibrary(value: unknown): asserts value is Library {
   const checkPositions = (positions: Record<string, any>, reading: boolean) => {
     for (const position of Object.values(positions)) {
       requireValue(object(position) && Number.isFinite(position.scroll) && position.scroll >= 0, '滚动位置无效');
-      if (reading) requireValue(Number.isInteger(position.chapter) && position.chapter >= 0 && (position.chapterId === undefined || typeof position.chapterId === 'string'), '阅读章节位置无效');
+      if (reading) {
+        requireValue(Number.isInteger(position.chapter) && position.chapter >= 0 && (position.chapterId === undefined || typeof position.chapterId === 'string'), '阅读章节位置无效');
+        if (position.percent !== undefined) requireValue(Number.isFinite(position.percent) && position.percent >= 0 && position.percent <= 100, '阅读百分比无效');
+        if (position.at !== undefined) requireValue(Number.isFinite(position.at) && position.at >= 0, '阅读时间无效');
+      }
       if (position.anchor) requireValue(object(position.anchor) && Number.isInteger(position.anchor.offset) && position.anchor.offset >= 0 && typeof position.anchor.context === 'string' && Number.isFinite(position.anchor.y), '文字锚点无效');
       if (position.selection) requireValue(object(position.selection) && ['body','name'].includes(position.selection.field) && Number.isInteger(position.selection.start) && position.selection.start >= 0 && Number.isInteger(position.selection.end) && position.selection.end >= position.selection.start, '编辑选区无效');
     }
