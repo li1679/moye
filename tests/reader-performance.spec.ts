@@ -29,6 +29,7 @@ test('directory jump to the last chapter preserves progress endpoints', async ({
   await page.goto('/');
   await page.locator('[data-action="tab:read"]').click();
   await page.locator('[data-action="book:1"]').click();
+  await expect(page.locator('#chapter-position')).toHaveText('1/3');
 
   const scroll = page.locator('.editor-scroll');
   await scroll.click({ position: { x: 200, y: 300 } });
@@ -36,6 +37,7 @@ test('directory jump to the last chapter preserves progress endpoints', async ({
   await page.locator('[data-action="directory"]').click();
   await page.locator('[data-action="jump-chapter:2"]').click();
   await expect(page.locator('.reader-footer span').first()).toHaveText('第3章  一封来信');
+  await expect(page.locator('#chapter-position')).toHaveText('3/3');
 
   await page.locator('.reader-progress input').fill('0');
   await expect(page.locator('.reader-footer span').first()).toHaveText('第3章  一封来信');

@@ -34,7 +34,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       return;
     }
     const b = needBook(state);
-    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
+    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span><span id="chapter-position">${state.chapter + 1}/${b.chapters.length}</span> · <span id="progress-value">0%</span></span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
     applyAppearance(ctx);
     const scroll = $(".editor-scroll");
     b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
@@ -42,6 +42,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       state.chapter = position.chapter;
       state.reading[b.id] = { ...position, percent: progress, at: Date.now() };
       $('#progress-value').textContent = progress + '%';
+      $('#chapter-position').textContent = `${position.chapter + 1}/${b.chapters.length}`;
       $<HTMLInputElement>('.reader-progress input').value = String(progress);
       $('.reader-footer span').textContent = b.chapters[position.chapter].name;
       $<HTMLButtonElement>('[data-action="reader-step:-1"]').disabled = position.chapter === 0;
