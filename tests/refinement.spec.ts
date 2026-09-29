@@ -39,7 +39,7 @@ test('grid line and color updates retain live panel nodes, scroll and persisted 
   expect(await page.evaluate(() => (window as any).gridPanel === document.querySelector('#sheet .sheet-content'))).toBe(true);
   await page.locator('[data-action="sheet-back"]').click();
   await expect(page.locator('#sheet')).toHaveAttribute('aria-label', '显示设置');
-  await page.locator('[data-action="settings:排版"]').click();
+  await page.locator('[data-action="settings:排版规则"]').click();
   await page.locator('[data-action="close"]').click();
   await page.waitForTimeout(500);
   await page.reload();

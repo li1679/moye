@@ -165,4 +165,14 @@ test.describe('墨页 UI refinement', () => {
     await page.locator('[data-action="search-tab:title"]').click();
     await expect(page.locator('#query')).toHaveValue('雨停');
   });
+
+  test('groups display settings into four tabs with a formatting-rules notice', async ({ page }) => {
+    await openEditor(page);
+    await page.locator('[data-action="tool:settings"]').click();
+    await expect(page.locator('.sheet-tabs [role="tab"]')).toHaveText(['版面', '字体', '主题', '排版规则']);
+    await expect(page.locator('[data-action="chapter-search"]')).toHaveCount(0);
+    await expect(page.locator('[data-action="export"]')).toHaveCount(0);
+    await page.locator('[data-action="settings:排版规则"]').click();
+    await expect(page.locator('.sheet-content')).toContainText('以下规则只在点“一键排版”时使用，不会改变当前显示。');
+  });
 });

@@ -22,7 +22,7 @@ export function createInitialState(): AppState {
     selected: new Set(),
     chapterBatch: false,
     selectedChapters: new Set(),
-    settingTab: '基础',
+    settingTab: '版面',
     layout: false,
     readerControls: false,
     ...emptyLibrary(),

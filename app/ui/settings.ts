@@ -18,7 +18,7 @@ export const presets = [
   { name: '竹青', paper: '#e4ede4', color: '#2f3b36' },
   { name: '夜读', paper: '#1b1a18', color: '#d9d3c7' },
 ] as const;
-const tabs = ['基础', '字体', '排版', '主题'];
+const tabs = ['版面', '字体', '主题', '排版规则'];
 
 export function createSettings({ state, openSheet, icon }: Context) {
   const switchRow = (label: string, key: keyof EditorPreferences) => `<label class="row"><span>${label}</span><input class="switch" type="checkbox" data-pref="${key}" ${state.prefs[key] ? 'checked' : ''}></label>`;
@@ -28,12 +28,12 @@ export function createSettings({ state, openSheet, icon }: Context) {
   const warning = (kind: 'theme' | 'read', paper: string, color: string) => { const ratio = contrastRatio(color, paper); return `<p class="contrast-warning" data-contrast="${kind}" role="status" ${ratio >= 4.5 ? 'hidden' : ''}>字色和纸色的对比度只有 ${ratio.toFixed(1)}:1，可能看不清。</p>`; };
 
   function settings(tab = state.settingTab) {
-    if (!tabs.includes(tab)) tab = '基础';
+    if (!tabs.includes(tab)) tab = '版面';
     state.settingTab = tab; const p = state.prefs; let body = '';
-    if (tab === '基础') body = `<button class="row" data-action="layout"><span>页面布局</span>${icon('chevron-right')}</button><button class="row" data-action="grid"><span>网格线</span><span class="row-value">${p.grid ? '已开启' : '已关闭'}</span>${icon('chevron-right')}</button><button class="row" data-action="chapter-search"><span>本章搜索</span>${icon('chevron-right')}</button><button class="row" data-action="export"><span>导出文档</span><span class="row-value">TXT</span>${icon('chevron-right')}</button>`;
-    if (tab === '字体') body = switchRow('字体加粗', 'bold') + `<label class="row"><span>字体设置</span><select id="font-family"><option ${p.fontFamily === '系统默认' ? 'selected' : ''}>系统默认</option><option ${p.fontFamily === '宋体' ? 'selected' : ''}>宋体</option><option ${p.fontFamily === '黑体' ? 'selected' : ''}>黑体</option></select></label>` + steps('字体大小', 'font', [14, 16, 18, 20, 22, 24, 26, 28], p.font) + steps('行间距', 'line', [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.2], p.line);
-    if (tab === '排版') body = switchRow('段落缩进', 'indent') + switchRow('去除多余空格', 'spaces') + steps('段落间隔行数', 'paragraph', ['不限', 0, 1, 2, 3], p.paragraph) + steps('左右边距', 'margin', [16, 20, 24, 28, 32], p.margin) + steps('正文底部间距', 'bottom', [24, 40, 80, 120, 160], p.bottom);
-    if (tab === '主题') body = presetButtons('theme', p.paper, p.color) + swatches('字体颜色', 'color', inkColors, p.color) + swatches('纯色背景', 'paper', paperColors, p.paper) + warning('theme', p.paper, p.color);
+    if (tab === '版面') body = `<button class="row" data-action="layout"><span>页面布局</span>${icon('chevron-right')}</button><button class="row" data-action="grid"><span>网格线</span><span class="row-value">${p.grid ? '已开启' : '已关闭'}</span>${icon('chevron-right')}</button>` + steps('左右边距', 'margin', [16, 20, 24, 28, 32], p.margin) + steps('正文底部间距', 'bottom', [24, 40, 80, 120, 160], p.bottom);
+    if (tab === '字体') body = switchRow('字体加粗', 'bold') + `<label class="row"><span>字体</span><select id="font-family"><option ${p.fontFamily === '系统默认' ? 'selected' : ''}>系统默认</option><option ${p.fontFamily === '宋体' ? 'selected' : ''}>宋体</option><option ${p.fontFamily === '黑体' ? 'selected' : ''}>黑体</option></select></label>` + steps('字体大小', 'font', [14, 16, 18, 20, 22, 24, 26, 28], p.font) + steps('行间距', 'line', [1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 2.2], p.line);
+    if (tab === '主题') body = presetButtons('theme', p.paper, p.color) + swatches('字体颜色', 'color', inkColors, p.color) + swatches('纸张颜色', 'paper', paperColors, p.paper) + warning('theme', p.paper, p.color);
+    if (tab === '排版规则') body = '<p class="hint">以下规则只在点“一键排版”时使用，不会改变当前显示。</p>' + switchRow('段落缩进', 'indent') + switchRow('去除多余空格', 'spaces') + steps('段落间隔行数', 'paragraph', ['不限', 0, 1, 2, 3], p.paragraph);
     openSheet('', body, { className: 'settings-sheet', label: '显示设置', header: `<div class="sheet-tabs" role="tablist" aria-label="设置分类">${tabs.map(value => `<button role="tab" aria-selected="${value === tab}" class="${value === tab ? 'active' : ''}" data-action="settings:${value}">${value}</button>`).join('')}</div>` });
   }
 
