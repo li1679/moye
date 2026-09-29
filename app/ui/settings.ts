@@ -44,7 +44,7 @@ export function createSettings({ state, openSheet, icon }: Context) {
 
   function readerSettings() {
     const p = state.readPrefs;
-    openSheet('阅读设置', presetButtons('read', p.paper, p.color) + `<div class="setting-label">亮度</div><input aria-label="阅读亮度" data-reader-pref="brightness" type="range" min="35" max="100" value="${p.brightness}">` + steps('字体大小', 'readfont', [16, 18, 20, 22, 24, 26], p.font) + steps('行间距', 'readline', [1.4, 1.6, 1.8, 2, 2.2], p.line) + steps('左右边距', 'readmargin', [16, 20, 24, 28, 32], p.margin ?? 24) + steps('底部留白', 'readbottom', [24, 40, 80, 120, 160], p.bottom ?? 80) + swatches('背景颜色', 'readpaper', readPaperColors, p.paper) + swatches('字体颜色', 'readcolor', readInkColors, p.color) + warning('read', p.paper, p.color), { className: 'settings-sheet reader-settings-sheet' });
+    openSheet('阅读设置', presetButtons('read', p.paper, p.color) + `<div class="setting-label">亮度</div><input aria-label="阅读亮度" data-reader-pref="brightness" type="range" min="35" max="100" value="${p.brightness}">` + steps('阅读字体', 'readfontFamily', ['系统默认', '宋体', '黑体'], p.fontFamily) + steps('段落整理', 'readtidy', ['关', '紧凑', '宽松'], p.tidy) + steps('字体大小', 'readfont', [16, 18, 20, 22, 24, 26], p.font) + steps('行间距', 'readline', [1.4, 1.6, 1.8, 2, 2.2], p.line) + steps('左右边距', 'readmargin', [16, 20, 24, 28, 32], p.margin ?? 24) + steps('底部留白', 'readbottom', [24, 40, 80, 120, 160], p.bottom ?? 80) + swatches('背景颜色', 'readpaper', readPaperColors, p.paper) + swatches('字体颜色', 'readcolor', readInkColors, p.color) + warning('read', p.paper, p.color), { className: 'settings-sheet reader-settings-sheet' });
   }
 
   function syncPreferenceControls() {

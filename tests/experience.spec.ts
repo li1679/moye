@@ -239,3 +239,27 @@ test('theme presets update editor and reader colors and warn about low contrast'
   expect(await page.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--paper').trim())).toBe('#1b1a18');
   expect(await page.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--text').trim())).toBe('#d9d3c7');
 });
+
+test('reader font and tidy display change presentation without editing source text', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await expect(page.locator('.reader .manuscript').first()).toHaveCSS('text-align', 'justify');
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="pref:readfontFamily:宋体"]').click();
+  const family = await page.locator('.reader .manuscript').first().evaluate(element => getComputedStyle(element).fontFamily);
+  expect(family).toMatch(/Songti SC|Noto Serif CJK SC/);
+  await page.locator('[data-action="pref:readtidy:紧凑"]').click();
+  await expect(page.locator('.reader .manuscript').first()).not.toContainText(/\n\s*\n/);
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="chapter-search"]').click();
+  await page.getByLabel('搜索文本').fill('　　清晨');
+  await expect(page.locator('#search-results .result')).toHaveCount(1);
+  await page.locator('#search-results .result').click();
+  await expect(page.locator('.reader .manuscript').first()).toContainText('　　清晨');
+  await page.locator('[data-action="home"]').click();
+  await page.locator('[data-action="tab:edit"]').click();
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  expect(await page.locator('.manuscript').textContent()).toContain('\n\n');
+});

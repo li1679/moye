@@ -19,6 +19,13 @@ export function applyAppearance(ctx: Ctx): void {
   r.style.setProperty('--margin', (p.margin ?? 24) + 'px');
   r.style.setProperty('--bottom', (p.bottom ?? 80) + 'px');
   r.style.setProperty('--body-weight', state.page !== 'reader' && state.prefs.bold ? '600' : '400');
+  if (state.page === 'reader') {
+    r.style.setProperty('--reader-font', p.fontFamily === '宋体'
+      ? 'var(--font-serif)'
+      : p.fontFamily === '黑体'
+        ? 'var(--font-sans-cjk)'
+        : 'inherit');
+  }
   document.documentElement.style.setProperty(
     '--body-font',
     state.prefs.fontFamily === '宋体'

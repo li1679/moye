@@ -2,6 +2,7 @@ import { $, esc } from '../core/dom';
 import { icon, ib } from '../kit/ui';
 import { mountReader } from '../features/reader/continuous';
 import { applyAppearance } from '../features/appearance';
+import { displayBody } from '../features/reader/display';
 import { needBook } from '../core/library';
 import type { ActionHandler, Ctx, PageModule, ReaderSession } from '../core/context';
 
@@ -47,7 +48,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       $('.reader-footer span').textContent = b.chapters[position.chapter].name;
       $<HTMLButtonElement>('[data-action="reader-step:-1"]').disabled = position.chapter === 0;
       $<HTMLButtonElement>('[data-action="reader-step:1"]').disabled = position.chapter === b.chapters.length - 1;
-    }, ctx.toast);
+    }, ctx.toast, chapter => displayBody(chapter, state.readPrefs.tidy));
     ctx.onDispose(() => { readerSession?.destroy(); readerSession = null; });
     applyAppearance(ctx);
   }
