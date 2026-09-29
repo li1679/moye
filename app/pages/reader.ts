@@ -3,6 +3,7 @@ import { icon, ib } from '../kit/ui';
 import { mountReader } from '../features/reader/continuous';
 import { applyAppearance } from '../features/appearance';
 import { displayBody } from '../features/reader/display';
+import { MoyeNative, isNative, syncReader } from '../features/native/native';
 import { needBook } from '../core/library';
 import type { ActionHandler, Ctx, PageModule, ReaderSession } from '../core/context';
 
@@ -103,14 +104,23 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       const el = event.target;
       if (el.dataset.readerPref) {
         setPanelValue(state.readPrefs, el.dataset.readerPref, Number(el.value));
-        $('.reader').style.filter = `brightness(${el.value}%)`;
+        $('.reader').style.filter = !isNative && !state.readPrefs.brightnessAuto ? `brightness(${el.value}%)` : '';
+        syncReader(state.readPrefs);
       }
       if (el.matches('.reader-progress input')) readerSession?.jump(state.chapter, Number(el.value));
     });
     document.addEventListener('change', (event) => {
       if (!(event.target instanceof HTMLInputElement) || !event.target.dataset.readSwitch) return;
       setPanelValue(state.readPrefs, event.target.dataset.readSwitch, event.target.checked);
+      const brightness = document.querySelector<HTMLInputElement>('[data-reader-pref="brightness"]');
+      if (brightness) brightness.disabled = state.readPrefs.brightnessAuto;
+      applyAppearance(ctx);
+      syncReader(state.readPrefs);
     });
+    if (isNative) {
+      const volume = MoyeNative.addListener('volumeKey', ({ direction }) => pageScreen(direction === 'up' ? -1 : 1));
+      ctx.onDispose(() => { void volume.then(handle => handle.remove()); });
+    }
   }
 
   const actions: Record<string, ActionHandler> = {

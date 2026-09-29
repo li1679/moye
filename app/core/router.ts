@@ -1,7 +1,7 @@
 import { $ } from './dom';
 import type { Ctx } from './context';
 import { currentBookUndo, clearBookUndo } from '../features/editor/book-undo';
-
+import { syncReader } from '../features/native/native';
 export type RouterPages = {
   editor(): void;    // 编辑页
   reader(): void;    // 阅读页
@@ -99,11 +99,13 @@ export function createRouter(ctx: Ctx, pages: RouterPages) {
   }
 
   function render() {
+    const state = ctx.state;
     const before = last;
     if (before?.page === 'chapters' && before.book !== null) chapterScroll.set(before.book, window.scrollY);
     const old = ctx.app.firstElementChild;
     doRender(before);
     last = snapshot();
+    syncReader(state.page === 'reader' ? state.readPrefs : null);
     if (reduce.matches) return;
     if (before) animate(before, last, old);
   }

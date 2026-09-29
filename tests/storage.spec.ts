@@ -32,7 +32,7 @@ test('commitInBatches 把 schema 行和 deletes 留到最后一批', async () =>
     { id: 'chapter:a', value: 'x'.repeat(400_000) },
     { id: 'chapter:b', value: 'y'.repeat(400_000) },
     { id: 'chapter:c', value: 'z'.repeat(400_000) },
-    { id: 'schema', value: '4' },
+    { id: 'schema', value: '5' },
   ];
   const deletes = ['recovery', 'orphan:1'];
   await commitInBatches(fake, upserts, deletes);
@@ -41,7 +41,7 @@ test('commitInBatches 把 schema 行和 deletes 留到最后一批', async () =>
     expect(call.upserts.reduce((sum, row) => sum + row.value.length, 0)).toBeLessThanOrEqual(1_000_000);
   }
   expect(calls.at(-1)!.deletes).toEqual(deletes);
-  expect(calls.at(-1)!.upserts.at(-1)).toEqual({ id: 'schema', value: '4' });
+  expect(calls.at(-1)!.upserts.at(-1)).toEqual({ id: 'schema', value: '5' });
   for (const call of calls.slice(0, -1)) expect(call.deletes).toEqual([]);
   expect(calls.flatMap(call => call.upserts.map(row => row.id))).toEqual(['chapter:a', 'chapter:b', 'chapter:c', 'schema']);
 });

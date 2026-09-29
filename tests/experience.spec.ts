@@ -289,3 +289,23 @@ test('reader tap paging uses thirds and respects its setting', async ({ page }) 
   await page.waitForTimeout(250);
   expect(await scroll.evaluate(element => element.scrollTop)).toBe(beforeHide);
 });
+
+test('reader native preference switches persist and brightness auto disables slider', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  for (const label of ['音量键翻页', '屏幕常亮', '沉浸阅读']) await page.getByLabel(label).uncheck();
+  await page.getByLabel('亮度跟随系统').check();
+  await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.reload();
+  await expect(page.locator('.reader')).toBeVisible();
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await expect(page.getByLabel('音量键翻页')).not.toBeChecked();
+  await expect(page.getByLabel('屏幕常亮')).not.toBeChecked();
+  await expect(page.getByLabel('沉浸阅读')).not.toBeChecked();
+  await expect(page.getByLabel('亮度跟随系统')).toBeChecked();
+  await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
+});

@@ -30,7 +30,7 @@ test('toRows 与 fromRows 往返一致', () => {
   expect(roundTripped).toEqual(normalizeLibrary(library));
 });
 
-test('migrateRows 把版本 1 的行升级到版本 4', () => {
+test('migrateRows 把版本 1 的行升级到版本 5', () => {
   const rows = new Map<string, string>();
   const put = (id: string, value: unknown) => rows.set(id, JSON.stringify(value));
   put('schema', 1);
@@ -45,7 +45,7 @@ test('migrateRows 把版本 1 的行升级到版本 4', () => {
   put('recovery', []);
 
   const { upserts, deletes } = migrateRows(rows);
-  expect(upserts.at(-1)).toEqual({ id: 'schema', value: '4' });
+  expect(upserts.at(-1)).toEqual({ id: 'schema', value: '5' });
   expect(deletes).toContain('recovery');
   const cover = upserts.find(row => row.id === 'cover:1');
   expect(cover).toBeDefined();
@@ -66,7 +66,7 @@ test('migrateRows 把版本 1 的行升级到版本 4', () => {
   const readingRow = upserts.find(row => row.id === 'reading');
   expect(JSON.parse(readingRow!.value)).not.toHaveProperty('999');
   const readPrefs = JSON.parse(upserts.find(row => row.id === 'readPrefs')!.value);
-  expect(readPrefs).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true });
+  expect(readPrefs).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true, volumePaging: true, keepAwake: true, immersive: false, brightnessAuto: true });
   const editingRow = upserts.find(row => row.id === 'editing');
   expect(JSON.parse(editingRow!.value)).not.toHaveProperty('nope');
 });
@@ -88,7 +88,7 @@ test('migrateRows 可以重复执行', () => {
   for (const row of first.upserts) rows.set(row.id, row.value);
   for (const id of first.deletes) rows.delete(id);
   const second = migrateRows(rows);
-  expect(second.upserts).toEqual([{ id: 'schema', value: '4' }]);
+  expect(second.upserts).toEqual([{ id: 'schema', value: '5' }]);
   expect(second.deletes).toEqual([]);
 });
 

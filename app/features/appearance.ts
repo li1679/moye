@@ -1,5 +1,6 @@
 import { $, $maybe } from '../core/dom';
 import { captureAnchor, restoreAnchor } from './editor/positions';
+import { isNative } from './native/native';
 import type { Ctx } from '../core/context';
 
 // 应用排版外观：字号、行距、纸色、字色、网格线，并保持阅读/编辑的滚动位置。
@@ -35,7 +36,7 @@ export function applyAppearance(ctx: Ctx): void {
         : 'inherit',
   );
   const reader = $maybe('.reader');
-  if (reader) reader.style.filter = `brightness(${state.readPrefs.brightness}%)`;
+  if (reader) reader.style.filter = !isNative && !state.readPrefs.brightnessAuto ? `brightness(${state.readPrefs.brightness}%)` : '';
   const m = $maybe('.manuscript');
   if (m) {
     m.classList.toggle('rules', state.page === 'editor' && state.prefs.grid);
