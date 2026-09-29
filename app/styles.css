@@ -78,6 +78,7 @@ body { min-height: 100dvh; }
 .editor .topbar { min-height: 60px; height: auto; padding: var(--sp-2); border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent); }
 .editor-tools { display: flex; justify-content: flex-start; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .editor-tools .icon, .editor-bottom .icon { min-width: var(--tap); }
+.overflowing:not(.at-end) { mask-image: linear-gradient(to right, var(--c-mask) calc(100% - 24px), transparent); }
 .editor .icon:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .editor-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-3) var(--margin) var(--bottom); scroll-behavior: smooth; overscroll-behavior-y: contain; }
 .editor-heading { min-height: var(--tap); margin: var(--sp-1) 0 var(--sp-4); padding-bottom: var(--sp-3); overflow-wrap: anywhere; border-bottom: 1px solid color-mix(in srgb, var(--text) 14%, transparent); font-family: var(--font-serif); font-size: var(--fs-xxl); font-weight: 700; }

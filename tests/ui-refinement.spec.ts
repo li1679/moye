@@ -1,4 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './seed';
+import type { Page } from '@playwright/test';
+
+async function openEditor(page: Page) {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+}
 
 test.describe('墨页 UI refinement', () => {
   test('uses the new product name and keeps compact controls tappable', async ({ page }) => {
@@ -52,5 +59,27 @@ test.describe('墨页 UI refinement', () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/');
     await expect(page.locator('.home')).toHaveCSS('background-color', 'rgb(27, 26, 24)');
+  });
+
+  test('marks the editor top toolbar as overflowing at 360px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await openEditor(page);
+    await expect(page.locator('.editor-tools')).toHaveClass(/\boverflowing\b/);
+  });
+
+  test('shows the tool name after a long press without running the tool', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await openEditor(page);
+    const manuscript = page.getByRole('textbox', { name: '章节正文', exact: true });
+    await manuscript.fill('长按前正文');
+    const undo = page.locator('[data-action="tool:undo"]');
+    const box = await undo.boundingBox();
+    if (!box) throw new Error('撤销按钮不可见');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(600);
+    await page.mouse.up();
+    await expect(page.locator('#notice')).toHaveText('撤销');
+    await expect(manuscript).toHaveText('长按前正文');
   });
 });

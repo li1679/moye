@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { $, $$, esc } from '../core/dom';
 import { ib, toolMenu, tools } from '../kit/ui';
+import { onLongPress } from '../kit/long-press';
 import { ChapterHistory, type HistoryHint } from '../features/editor/history';
 import { formatText, replaceText, wordsOf } from '../features/editor/text-tools';
 import { extractInputEdit, type InputEdit } from '../features/editor/input-session';
@@ -57,6 +58,32 @@ function isLineType(value: string): value is Prefs['lineType'] {
   let wordCountRevision = 0;
   let pendingFormat: PendingChange[] | null = null;
   let pendingReplace: PendingChange[] | null = null;
+
+  function installToolbarInteractions() {
+    const bars = $$<HTMLElement>('.editor-tools, .editor-bottom', ctx.app);
+    const updateOverflow = (bar: HTMLElement) => {
+      const overflowing = bar.scrollWidth > bar.clientWidth;
+      bar.classList.toggle('overflowing', overflowing);
+      bar.classList.toggle('at-end', overflowing && bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 1);
+    };
+    const listeners = bars.map(bar => {
+      const update = () => updateOverflow(bar);
+      bar.addEventListener('scroll', update, { passive: true });
+      update();
+      return () => bar.removeEventListener('scroll', update);
+    });
+    const resize = () => bars.forEach(updateOverflow);
+    window.addEventListener('resize', resize);
+    const stopLongPress = onLongPress(ctx.app, '.editor-tools .icon, .editor-bottom .icon', button => {
+      const label = button.getAttribute('aria-label');
+      if (label) ctx.toast(label);
+    });
+    ctx.onDispose(() => {
+      listeners.forEach(remove => remove());
+      window.removeEventListener('resize', resize);
+      stopLongPress();
+    });
+  }
 
   function resetHistory(id: string | null = null) {
     if (historyChapterId === id) return;
@@ -181,6 +208,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
     ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count">本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
     applyAppearance(ctx);
     updateHistoryTools();
+    installToolbarInteractions();
     $(".manuscript").textContent = c.body;
     $(".manuscript").setAttribute('contenteditable', 'plaintext-only');
     const scroll = $(".editor-scroll");

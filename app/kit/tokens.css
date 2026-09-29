@@ -16,6 +16,7 @@
   --c-on-danger: #ffffff;
   --c-mark: #f3e0b8;        /* 搜索命中的底色 */
   --c-backdrop: rgb(20 18 15 / 0.38);
+  --c-mask: #000;            /* CSS mask 只读取透明度 */
 
   --fs-xs: 12px; --fs-s: 13px; --fs-m: 15px; --fs-l: 17px; --fs-xl: 20px; --fs-xxl: 26px;
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
