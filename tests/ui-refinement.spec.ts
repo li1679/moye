@@ -111,7 +111,7 @@ test.describe('墨页 UI refinement', () => {
     await page.goto('/');
     await page.locator('[data-action="tab:me"]').click();
     await page.locator('[data-action="about"]').click();
-    await expect(page.locator('.sheet-content')).toContainText('墨页 0.1.0');
+    await expect(page.locator('.sheet-content')).toContainText('墨页 1.1.0');
     await expect(page.locator('.sheet-content')).toContainText('本地阅读，随心改文');
     await expect(page.locator('.sheet-content')).toContainText('所有数据只保存在本机，不联网。');
   });
@@ -136,7 +136,7 @@ test.describe('墨页 UI refinement', () => {
     await expect(page.locator('.bottom-nav span')).toHaveText(['写作', '阅读', '设置']);
     await page.locator('[data-action="tab:me"]').click();
     await expect(page.locator('.topbar h1')).toHaveText('设置');
-    await expect(page.locator('.profile-intro h2')).toHaveText('墨页 0.1.0');
+    await expect(page.locator('.profile-intro h2')).toHaveText('墨页 1.1.0');
     for (const action of ['import', 'backup', 'cache', 'about']) {
       await expect(page.locator(`[data-action="${action}"]`)).toBeVisible();
     }

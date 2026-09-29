@@ -295,6 +295,10 @@ test('reader native preference switches persist and brightness auto disables sli
   await reading(page);
   await controls(page);
   await page.locator('[data-action="reader-settings"]').click();
+  await page.getByLabel('沉浸阅读').check();
+  await expect(page.locator('.reader-status')).toBeVisible();
+  await expect(page.locator('#reader-time')).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.locator('#reader-battery')).toBeHidden();
   for (const label of ['音量键翻页', '屏幕常亮', '沉浸阅读']) await page.getByLabel(label).uncheck();
   await page.getByLabel('亮度跟随系统').check();
   await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
