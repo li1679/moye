@@ -56,9 +56,9 @@ export type Library = {
 export const DEFAULT_PREFS: Prefs = {
   font: 20, line: 1.8, bold: false, indent: true, spaces: false, paragraph: '不限', margin: 24, bottom: 80,
   grid: false, near: true, thick: false, lineType: '短虚线', lineColor: '#dadde0',
-  color: '#292d30', paper: '#ffffff', fontFamily: '系统默认',   // 第 3 批（3.6）改为 #1f1d1a / #f6f1e7
+  color: '#1f1d1a', paper: '#f6f1e7', fontFamily: '系统默认',
 };
-export const DEFAULT_READ_PREFS: ReadPrefs = { font: 20, line: 1.8, margin: 24, bottom: 80, paper: '#ffffff', color: '#292d30', brightness: 100 };
+export const DEFAULT_READ_PREFS: ReadPrefs = { font: 20, line: 1.8, margin: 24, bottom: 80, paper: '#f6f1e7', color: '#1f1d1a', brightness: 100 };
 export const DEFAULT_TOOLBARS: Toolbars = { top: ['copy', 'format', 'undo', 'redo', 'directory', 'settings'], bottom: ['keyboard', 'find', 'top', 'bottom', null, null] };
 export const DEFAULT_SESSION: Session = { tab: 'edit', page: 'home', folder: null, book: null, chapter: 0 };
 

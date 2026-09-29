@@ -14,6 +14,7 @@ import { applyAppearance } from '../features/appearance';
 import { openDirectory } from '../features/directory';
 import { needBook, needChapter } from '../core/library';
 import type { Chapter, Prefs, ToolId } from '../data/schema';
+import { presets } from '../ui/settings';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
 // 2.9 搬走的部分由组装入口注入：搜索面板。
@@ -300,6 +301,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
         if (key.startsWith("read")) setPanelValue(state.readPrefs, key.slice(4), el.value);
         else setPanelValue(state.prefs, key, el.value);
         applyAppearance(ctx);
+        ctx.settings.syncPreferenceControls();
       }
     });
     document.addEventListener('change', (e) => {
@@ -336,31 +338,22 @@ function isLineType(value: string): value is Prefs['lineType'] {
     pref(arg, arg2) {
       if (arg === undefined || arg2 === undefined) return;
       const value: string | number = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
-      if (arg.startsWith("read")) {
-        setPanelValue(state.readPrefs, arg.slice(4), value);
-        applyAppearance(ctx);
-        // 保持面板控件、焦点和滚动位置不动。
-        document.querySelectorAll<HTMLElement>('#sheet [data-action^="pref:' + arg + '"]').forEach(button => {
-          button.classList.toggle('selected', button.dataset.action === 'pref:' + arg + ':' + arg2);
-        });
-        const custom = document.querySelector<HTMLInputElement>('#sheet [data-color="' + arg + '"]');
-        if (custom) custom.value = String(value);
-        return;
-      }
-      setPanelValue(state.prefs, arg, value);
+      if (arg.startsWith("read")) setPanelValue(state.readPrefs, arg.slice(4), value);
+      else setPanelValue(state.prefs, arg, value);
       applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
-    'theme-dark'() {
-      state.prefs.paper = "#232527";
-      state.prefs.color = "#dedede";
+    'theme-preset'(arg) {
+      const preset = presets[Number(arg)];
+      if (!preset) return;
+      Object.assign(state.prefs, { paper: preset.paper, color: preset.color });
       applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
-    'theme-light'(arg) {
-      if (arg === undefined) return;
-      state.prefs.paper = arg;
-      state.prefs.color = "#292d30";
+    'read-preset'(arg) {
+      const preset = presets[Number(arg)];
+      if (!preset) return;
+      Object.assign(state.readPrefs, { paper: preset.paper, color: preset.color, night: preset.name === '夜读' });
       applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },

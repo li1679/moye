@@ -20,7 +20,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
   let readingPointer: { x: number; y: number; time: number; scroll: number } | null = null;
 
   function nightLabel(): string {
-    return (state.readPrefs.night ?? state.readPrefs.paper === "#202123")
+    return (state.readPrefs.night ?? ['#202123', '#1b1a18'].includes(state.readPrefs.paper))
       ? `${icon("sun")}日间`
       : `${icon("moon")}夜间`;
   }
@@ -91,8 +91,8 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
   const actions: Record<string, ActionHandler> = {
     night() {
       const p = state.readPrefs;
-      const dark = p.night ?? p.paper === '#202123';
-      const themes = p.themes || { day: { paper: '#ffffff', color: '#292d30' }, night: { paper: '#202123', color: '#dedede' } };
+      const dark = p.night ?? ['#202123', '#1b1a18'].includes(p.paper);
+      const themes = p.themes || { day: { paper: '#f6f1e7', color: '#1f1d1a' }, night: { paper: '#1b1a18', color: '#d9d3c7' } };
       themes[dark ? 'night' : 'day'] = { paper: p.paper, color: p.color };
       p.themes = themes;
       p.night = !dark;

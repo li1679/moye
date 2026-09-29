@@ -108,8 +108,8 @@ test('settings keep panel and reading positions, isolate colors and center the h
   const offset = await content.evaluate(el => el.scrollTop);
   const node = await content.elementHandle();
   const colors = await page.locator('#sheet').evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]);
-  await page.locator('[data-action="pref:readpaper:#eff7f7"]').click();
-  await page.locator('[data-action="pref:readcolor:#85a8c1"]').click();
+  await page.locator('[data-action="pref:readpaper:#e4ede4"]').click();
+  await page.locator('[data-action="pref:readcolor:#27313d"]').click();
   expect(await node!.evaluate(el => el === document.querySelector('#sheet .sheet-content'))).toBe(true);
   expect(await content.evaluate(el => el.scrollTop)).toBe(offset);
   expect(await page.locator('.editor-scroll').evaluate(el => el.scrollTop)).toBe(1400);
@@ -161,12 +161,12 @@ test('day and night retain separate custom colors and long press does not open c
   await reading(page);
   await controls(page);
   await page.locator('[data-action="reader-settings"]').click();
-  await page.locator('[data-action="pref:readpaper:#eff7f7"]').click();
+  await page.locator('[data-action="pref:readpaper:#e4ede4"]').click();
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await page.locator('[data-action="night"]').click();
   await expect(page.locator('[data-action="night"]')).toContainText('日间');
   await page.locator('[data-action="night"]').click();
-  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.reader')!).getPropertyValue('--paper').trim())).toBe('#eff7f7');
+  expect(await page.evaluate(() => getComputedStyle(document.querySelector('.reader')!).getPropertyValue('--paper').trim())).toBe('#e4ede4');
   await page.locator('.editor-scroll').click({ position: { x: 200, y: 300 } });
   await expect(page.locator('.reader')).not.toHaveClass(/controls/);
   const scroll = page.locator('.editor-scroll');
@@ -195,4 +195,29 @@ test('grid repeat height follows computed text line height at fractional setting
   });
   expect(values.repeat).toBeCloseTo(values.line, 3);
   await page.screenshot({ path: 'test-results/editor-grid.png' });
+});
+
+test('theme presets update editor and reader colors and warn about low contrast', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  await page.locator('[data-action="tool:settings"]').click();
+  await page.locator('[data-action="settings:主题"]').click();
+  await expect(page.locator('[data-action^="theme-preset:"]')).toHaveCount(5);
+  await page.locator('[data-action="theme-preset:3"]').click();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--paper').trim())).toBe('#e4ede4');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--text').trim())).toBe('#2f3b36');
+  await page.locator('[data-action="pref:color:#e9e4da"]').click();
+  await expect(page.locator('.contrast-warning')).toContainText('可能看不清');
+
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.getByRole('button', { name: '返回目录', exact: true }).click();
+  await page.getByRole('button', { name: '返回书架', exact: true }).click();
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await expect(page.locator('[data-action^="read-preset:"]')).toHaveCount(5);
+  await page.locator('[data-action="read-preset:4"]').click();
+  expect(await page.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--paper').trim())).toBe('#1b1a18');
+  expect(await page.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--text').trim())).toBe('#d9d3c7');
 });
