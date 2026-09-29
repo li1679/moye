@@ -20,6 +20,7 @@ export function createSearchUi(ctx: Ctx): SearchUi {
   let searchPage = 0;
   let searchRevision = 0;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let searchIdleTimer: ReturnType<typeof setTimeout> | undefined;
   const searchClient = new SearchClient();
   let currentHits: SearchHit[] = [];
   let selectedMatch: SearchHit | null = null;
@@ -68,6 +69,8 @@ export function createSearchUi(ctx: Ctx): SearchUi {
           documents.push({ bookId: b.id, chapterId: c.id, title: c.name, bookName: b.name, body: c.body });
         });
       }
+      clearTimeout(searchIdleTimer);
+      searchIdleTimer = setTimeout(() => searchClient.dispose(), 5 * 60 * 1000);
       try {
         const { hits, total } = await searchClient.search(documents, q, searchPage);
         if (revision !== searchRevision || !$("#search-results")) return;
@@ -152,12 +155,12 @@ export function createSearchUi(ctx: Ctx): SearchUi {
     );
   }
 
-  // 弹层关闭时停掉待执行的搜索；输入框文字变化时重新搜索。
+  // 关闭面板只取消当前请求；Worker 与索引空闲五分钟后再释放。
   function install() {
     ctx.sheet.addEventListener('close', () => {
       searchRevision++;
       clearTimeout(searchTimer);
-      searchClient.dispose();
+      searchClient.cancel();
     });
     document.addEventListener('input', (event) => {
       if (!(event.target instanceof HTMLInputElement)) return;

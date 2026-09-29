@@ -73,3 +73,26 @@ test('search client reuses worker and transfers no unchanged bodies between page
   });
   expect(result).toEqual({ created: 1, first: 125, next: 150, changed: 1, patches: [1, 0, 1] });
 });
+
+test('search panel keeps its worker alive across close and reopen', async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    let created = 0;
+    class TrackedWorker extends NativeWorker {
+      constructor(url: string | URL, options?: WorkerOptions) { super(url, options); created++; }
+    }
+    window.Worker = TrackedWorker as typeof Worker;
+    Object.defineProperty(window, '__searchWorkerCount', { get: () => created });
+  });
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="book-menu"]').click();
+  await page.locator('[data-action="book-search"]').click();
+  await page.locator('#query').fill('林舟');
+  await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="book-menu"]').click();
+  await page.locator('[data-action="book-search"]').click();
+  await expect(page.locator('[data-action^="match-hit:"]')).toHaveCount(2);
+  expect(await page.evaluate(() => (window as typeof window & { __searchWorkerCount: number }).__searchWorkerCount)).toBe(1);
+});
