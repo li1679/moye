@@ -1,7 +1,7 @@
 // 书库数据的唯一定义：类型、默认值、规范化、校验、数据库行格式、版本迁移。
 // 规则：新增要保存的字段，先在这里登记，并写明哪个页面读它。
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 // search 供编辑器“本章查找”工具使用；默认工具栏不放置。
 export const TOOL_IDS = ['copy', 'format', 'undo', 'redo', 'directory', 'settings', 'keyboard', 'find', 'search', 'top', 'bottom', 'previous', 'next'] as const;
@@ -39,9 +39,10 @@ export type ReadPrefs = {
   font: number; line: number; margin: number; bottom: number; paper: string; color: string; brightness: number;
   fontFamily: '系统默认' | '宋体' | '黑体';   // 阅读器设置和阅读正文读取。
   tidy: '关' | '紧凑' | '宽松';             // 阅读器显示正文和阅读搜索读取。
+  tapPaging: boolean;                           // 阅读器点按上、下区域翻屏时读取。
   night?: boolean;
   themes?: { day: { paper: string; color: string }; night: { paper: string; color: string } };
-  // 第 5 批后续加：tapPaging、volumePaging、keepAwake、immersive、brightnessAuto
+  // 第 5 批后续加：volumePaging、keepAwake、immersive、brightnessAuto
 };
 
 export type Toolbars = { top: (ToolId | null)[]; bottom: (ToolId | null)[] };
@@ -60,7 +61,7 @@ export const DEFAULT_PREFS: Prefs = {
   grid: false, near: true, thick: false, lineType: '短虚线', lineColor: '#dadde0',
   color: '#1f1d1a', paper: '#f6f1e7', fontFamily: '系统默认',
 };
-export const DEFAULT_READ_PREFS: ReadPrefs = { font: 20, line: 1.8, margin: 24, bottom: 80, paper: '#f6f1e7', color: '#1f1d1a', brightness: 100, fontFamily: '系统默认', tidy: '关' };
+export const DEFAULT_READ_PREFS: ReadPrefs = { font: 20, line: 1.8, margin: 24, bottom: 80, paper: '#f6f1e7', color: '#1f1d1a', brightness: 100, fontFamily: '系统默认', tidy: '关', tapPaging: true };
 export const DEFAULT_TOOLBARS: Toolbars = { top: ['copy', 'format', 'undo', 'redo', 'directory', 'settings'], bottom: ['keyboard', 'find', 'top', 'bottom', null, null] };
 export const DEFAULT_SESSION: Session = { tab: 'edit', page: 'home', folder: null, book: null, chapter: 0 };
 

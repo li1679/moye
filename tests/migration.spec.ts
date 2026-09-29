@@ -42,12 +42,12 @@ async function readRows(page: import('@playwright/test').Page): Promise<Record<s
   }));
 }
 
-test('版本 1 数据在启动时迁移到版本 3', async ({ page }) => {
+test('版本 1 数据在启动时迁移到版本 4', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.save-status')).toHaveText('已保存');
   const rows = await readRows(page);
   expect(rows['recovery']).toBeUndefined();
-  expect(rows['schema']).toBe('3');
+  expect(rows['schema']).toBe('4');
   expect(rows['cover:1']).toBe(JSON.stringify('data:image/png;base64,aGVsbG8='));
   const book = JSON.parse(rows['book:1']);
   expect(book).not.toHaveProperty('image');
@@ -56,7 +56,7 @@ test('版本 1 数据在启动时迁移到版本 3', async ({ page }) => {
   expect(JSON.parse(rows['reading'])).not.toHaveProperty('999');
   expect(JSON.parse(rows['prefs'])).not.toHaveProperty('autoScroll');
   expect(JSON.parse(rows['prefs'])).not.toHaveProperty('punctuation');
-  expect(JSON.parse(rows['readPrefs'])).toMatchObject({ fontFamily: '系统默认', tidy: '关' });
+  expect(JSON.parse(rows['readPrefs'])).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true });
   await page.reload();
   await toShelf(page);
   await expect(page.locator('[data-action="book:1"] img')).toBeVisible();

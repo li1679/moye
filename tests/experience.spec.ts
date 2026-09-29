@@ -263,3 +263,29 @@ test('reader font and tidy display change presentation without editing source te
   await page.locator('[data-action="chapter:0"]').click();
   expect(await page.locator('.manuscript').textContent()).toContain('\n\n');
 });
+
+test('reader tap paging uses thirds and respects its setting', async ({ page }) => {
+  await prepare(page);
+  await reading(page);
+  const scroll = page.locator('.editor-scroll');
+  const box = (await scroll.boundingBox())!;
+  const point = (ratio: number) => ({ x: box.width / 2, y: box.height * ratio });
+  const initial = await scroll.evaluate(element => element.scrollTop);
+  await scroll.click({ position: point(.85) });
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBeGreaterThan(initial);
+  const lower = await scroll.evaluate(element => element.scrollTop);
+  await scroll.click({ position: point(.15) });
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBeLessThan(lower);
+  await scroll.click({ position: point(.5) });
+  await expect(page.locator('.reader')).toHaveClass(/controls/);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.getByLabel('点击翻页').uncheck();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  const beforeHide = await scroll.evaluate(element => element.scrollTop);
+  await scroll.click({ position: point(.85) });
+  await expect(page.locator('.reader')).not.toHaveClass(/controls/);
+  expect(await scroll.evaluate(element => element.scrollTop)).toBe(beforeHide);
+  await scroll.click({ position: point(.85) });
+  await page.waitForTimeout(250);
+  expect(await scroll.evaluate(element => element.scrollTop)).toBe(beforeHide);
+});

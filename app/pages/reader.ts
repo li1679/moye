@@ -19,11 +19,22 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
   let readerSession: ReaderSession | null = null;
   // 阅读区按下的位置与时间，用来区分"点按呼出控制栏"和拖动、滚动、长按。
   let readingPointer: { x: number; y: number; time: number; scroll: number } | null = null;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   function nightLabel(): string {
     return (state.readPrefs.night ?? ['#202123', '#1b1a18'].includes(state.readPrefs.paper))
       ? `${icon("sun")}日间`
       : `${icon("moon")}夜间`;
+  }
+  function pageScreen(direction: -1 | 1): void {
+    const scroll = $('.editor-scroll');
+    const body = readerSession?.body();
+    if (!body) return;
+    const lineHeight = parseFloat(getComputedStyle(body).lineHeight);
+    scroll.scrollBy({
+      top: direction * Math.max(0, scroll.clientHeight - 2 * lineHeight),
+      behavior: reduceMotion.matches ? 'auto' : 'smooth',
+    });
   }
 
   // 阅读页渲染（原 renderEditor 的阅读分支）。
@@ -57,8 +68,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
     if (!readingPointer || performance.now() - readingPointer.time > 500 || Math.hypot(event.clientX - readingPointer.x, event.clientY - readingPointer.y) > 10) return false;
     const scroll = $('.editor-scroll');
     if (Math.abs(scroll.scrollTop - readingPointer.scroll) > 5 || !getSelection()?.isCollapsed) return false;
-    const rect = scroll.getBoundingClientRect();
-    return event.clientY > rect.top + rect.height * .2 && event.clientY < rect.bottom - rect.height * .2;
+    return true;
   }
 
   // 阅读器的输入与点击监听：亮度、进度条、点按呼出控制栏。
@@ -74,8 +84,18 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       if (!(event.target instanceof Element)) return;
       if (event.target.closest('.drag-handle') || event.target.closest('[data-action]')) return;
       if (state.page !== 'reader' || !event.target.closest('[data-reader]') || !isReadingTap(event)) return;
-      state.readerControls = !state.readerControls;
-      $('.reader').classList.toggle('controls', state.readerControls);
+      const reader = $('.reader');
+      if (state.readerControls) {
+        state.readerControls = false;
+        reader.classList.remove('controls');
+        return;
+      }
+      const rect = $('.editor-scroll').getBoundingClientRect();
+      const ratio = (event.clientY - rect.top) / rect.height;
+      if (ratio >= 1 / 3 && ratio <= 2 / 3) {
+        state.readerControls = true;
+        reader.classList.add('controls');
+      } else if (state.readPrefs.tapPaging) pageScreen(ratio < 1 / 3 ? -1 : 1);
     });
     document.addEventListener('input', (event) => {
       // 阅读亮度（data-reader-pref）与本章进度条；其余输入事件由各页面的监听处理。
@@ -86,6 +106,10 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
         $('.reader').style.filter = `brightness(${el.value}%)`;
       }
       if (el.matches('.reader-progress input')) readerSession?.jump(state.chapter, Number(el.value));
+    });
+    document.addEventListener('change', (event) => {
+      if (!(event.target instanceof HTMLInputElement) || !event.target.dataset.readSwitch) return;
+      setPanelValue(state.readPrefs, event.target.dataset.readSwitch, event.target.checked);
     });
   }
 
