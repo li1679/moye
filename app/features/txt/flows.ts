@@ -35,6 +35,7 @@ export function createTxtFlows(context: Context) {
       <label class="form-field"><span>文本编码</span><select id="txt-encoding"><option value="auto">自动识别</option><option value="utf-8">UTF-8</option><option value="gb18030">GB18030 / GBK</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option><option value="big5">Big5</option></select></label>
       <label class="form-field"><span>章节识别</span><select id="txt-mode"><option value="auto">自动识别章节</option><option value="single">整篇作为一章</option></select></label>
       <p id="txt-summary" class="hint" role="status">选择文件后预览识别结果。</p>
+      <p id="txt-warning" class="error"></p>
       <div id="txt-result" hidden>
         ${appendTo ? '' : '<label class="form-field"><span>书名</span><input id="txt-title" maxlength="100" required></label><label class="form-field"><span>作者</span><input id="txt-author" maxlength="100" placeholder="未识别到可留空"></label>'}
         <label class="form-field"><span>章节预览</span><select id="txt-chapter"></select></label>
@@ -64,6 +65,7 @@ export function createTxtFlows(context: Context) {
       confirm.disabled = true;
       find('#txt-result').hidden = true;
       error.textContent = '';
+      find('#txt-warning').textContent = '';
       find('#txt-summary').textContent = '正在读取并识别…';
       try {
         if (!/\.txt$/i.test(selected.name)) throw new Error('请选择 .txt 格式的文件。');
@@ -94,6 +96,7 @@ export function createTxtFlows(context: Context) {
             find<HTMLInputElement>('#txt-duplicate').checked = false;
           }
           find('#txt-summary').textContent = selected.name + ' · ' + parsed.encoding.toUpperCase() + ' · ' + parsed.chapters.length + ' 章 · ' + parsed.characters.toLocaleString() + ' 字符（含标题和空白）';
+          find('#txt-warning').textContent = parsed.warning ?? '';
           find('#txt-result').hidden = false;
           confirm.disabled = false;
           preview();
