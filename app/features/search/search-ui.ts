@@ -4,6 +4,7 @@ import { needBook } from '../../core/library';
 import { SearchClient } from '../editor/search-client';
 import type { SearchDocument, SearchHit } from '../editor/text-tools';
 import { bookWords } from '../editor/text-tools';
+import { displayBody } from '../reader/display';
 import type { ActionHandler, Ctx, PageModule } from '../../core/context';
 
 // 各搜索面板与结果处理（2.9 从 prototype.js 拆出）：全部书籍/本书/本章搜索、书名搜索、
@@ -17,6 +18,7 @@ export type SearchUi = PageModule & {
 
 export function createSearchUi(ctx: Ctx): SearchUi {
   const state = ctx.state;
+  const searchBody = (chapter: { body: string }) => state.page === 'reader' ? displayBody(chapter, state.readPrefs.tidy) : chapter.body;
   let searchPage = 0;
   let searchRevision = 0;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -66,7 +68,7 @@ export function createSearchUi(ctx: Ctx): SearchUi {
         b.chapters.forEach((c, i) => {
           if (scope === 'chapter' && i !== state.chapter) return;
           c.id ??= crypto.randomUUID();
-          documents.push({ bookId: b.id, chapterId: c.id, title: c.name, bookName: b.name, body: c.body });
+          documents.push({ bookId: b.id, chapterId: c.id, title: c.name, bookName: b.name, body: searchBody(c) });
         });
       }
       clearTimeout(searchIdleTimer);
@@ -194,15 +196,24 @@ export function createSearchUi(ctx: Ctx): SearchUi {
       }
       const targetBook = state.books.find(b => b.id === hit.bookId);
       const index = targetBook?.chapters.findIndex(c => c.id === hit.chapterId);
-      if (!targetBook || index === undefined || index < 0 || targetBook.chapters[index].body.slice(hit.offset, hit.offset + hit.match.length) !== hit.match) {
+      const targetChapter = targetBook && index !== undefined && index >= 0 ? targetBook.chapters[index] : undefined;
+      if (!targetChapter || searchBody(targetChapter).slice(hit.offset, hit.offset + hit.match.length) !== hit.match) {
         ctx.toast('匹配内容已变化，请重新搜索');
         searchResults();
         return;
       }
+      const chapterIndex = targetBook!.chapters.indexOf(targetChapter);
+      const session = state.page === 'reader' && state.book === hit.bookId ? ctx.reader.session() : null;
       state.book = hit.bookId;
-      state.chapter = index;
+      state.chapter = chapterIndex;
+      if (session) {
+        session.jump(chapterIndex);
+        ctx.closeSheet();
+        requestAnimationFrame(() => ctx.editor.locateText(hit.offset, hit.match.length));
+        return;
+      }
       state.page = state.tab === "read" ? "reader" : "editor";
-      if (state.page === 'reader') state.reading[state.book] = { chapter: index, chapterId: hit.chapterId, scroll: 0 };
+      if (state.page === 'reader') state.reading[state.book] = { chapter: chapterIndex, chapterId: hit.chapterId, scroll: 0 };
       ctx.closeSheet();
       ctx.render();
       requestAnimationFrame(() => ctx.editor.locateText(hit.offset, hit.match.length));

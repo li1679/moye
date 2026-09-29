@@ -63,6 +63,11 @@ export function createDirectory(ctx: Ctx): PageModule {
       openDirectory(ctx, !state.directoryReverse);
     },
     'jump-chapter'(arg) {
+      if (state.page === 'reader') {
+        ctx.reader.session()?.jump(Number(arg));
+        ctx.closeSheet();
+        return;
+      }
       openChapter(ctx, arg);
     },
   };

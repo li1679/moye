@@ -2,6 +2,8 @@ import { $, esc } from '../core/dom';
 import { icon, ib } from '../kit/ui';
 import { mountReader } from '../features/reader/continuous';
 import { applyAppearance } from '../features/appearance';
+import { displayBody } from '../features/reader/display';
+import { MoyeNative, isNative, syncReader } from '../features/native/native';
 import { needBook } from '../core/library';
 import type { ActionHandler, Ctx, PageModule, ReaderSession } from '../core/context';
 
@@ -18,11 +20,22 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
   let readerSession: ReaderSession | null = null;
   // 阅读区按下的位置与时间，用来区分"点按呼出控制栏"和拖动、滚动、长按。
   let readingPointer: { x: number; y: number; time: number; scroll: number } | null = null;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
   function nightLabel(): string {
     return (state.readPrefs.night ?? ['#202123', '#1b1a18'].includes(state.readPrefs.paper))
       ? `${icon("sun")}日间`
       : `${icon("moon")}夜间`;
+  }
+  function pageScreen(direction: -1 | 1): void {
+    const scroll = $('.editor-scroll');
+    const body = readerSession?.body();
+    if (!body) return;
+    const lineHeight = parseFloat(getComputedStyle(body).lineHeight);
+    scroll.scrollBy({
+      top: direction * Math.max(0, scroll.clientHeight - 2 * lineHeight),
+      behavior: reduceMotion.matches ? 'auto' : 'smooth',
+    });
   }
 
   // 阅读页渲染（原 renderEditor 的阅读分支）。
@@ -34,20 +47,20 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       return;
     }
     const b = needBook(state);
-    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"><div class="reader-label">${esc(b.name)} · ${state.chapter + 1} / ${b.chapters.length}</div><h1 class="editor-heading">${esc(c.name)}</h1><div class="manuscript" data-placeholder="本章暂无正文">${esc(c.body)}</div></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span id="progress-value">0%</span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
+    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span><span id="chapter-position">${state.chapter + 1}/${b.chapters.length}</span> · <span id="progress-value">0%</span></span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
     applyAppearance(ctx);
-    $(".manuscript").textContent = c.body;
     const scroll = $(".editor-scroll");
     b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
     readerSession = mountReader(scroll, b.chapters, state.chapter, state.reading[b.id], (position, progress) => {
       state.chapter = position.chapter;
       state.reading[b.id] = { ...position, percent: progress, at: Date.now() };
       $('#progress-value').textContent = progress + '%';
+      $('#chapter-position').textContent = `${position.chapter + 1}/${b.chapters.length}`;
       $<HTMLInputElement>('.reader-progress input').value = String(progress);
       $('.reader-footer span').textContent = b.chapters[position.chapter].name;
       $<HTMLButtonElement>('[data-action="reader-step:-1"]').disabled = position.chapter === 0;
       $<HTMLButtonElement>('[data-action="reader-step:1"]').disabled = position.chapter === b.chapters.length - 1;
-    }, ctx.toast);
+    }, ctx.toast, chapter => displayBody(chapter, state.readPrefs.tidy));
     ctx.onDispose(() => { readerSession?.destroy(); readerSession = null; });
     applyAppearance(ctx);
   }
@@ -56,8 +69,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
     if (!readingPointer || performance.now() - readingPointer.time > 500 || Math.hypot(event.clientX - readingPointer.x, event.clientY - readingPointer.y) > 10) return false;
     const scroll = $('.editor-scroll');
     if (Math.abs(scroll.scrollTop - readingPointer.scroll) > 5 || !getSelection()?.isCollapsed) return false;
-    const rect = scroll.getBoundingClientRect();
-    return event.clientY > rect.top + rect.height * .2 && event.clientY < rect.bottom - rect.height * .2;
+    return true;
   }
 
   // 阅读器的输入与点击监听：亮度、进度条、点按呼出控制栏。
@@ -73,8 +85,18 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       if (!(event.target instanceof Element)) return;
       if (event.target.closest('.drag-handle') || event.target.closest('[data-action]')) return;
       if (state.page !== 'reader' || !event.target.closest('[data-reader]') || !isReadingTap(event)) return;
-      state.readerControls = !state.readerControls;
-      $('.reader').classList.toggle('controls', state.readerControls);
+      const reader = $('.reader');
+      if (state.readerControls) {
+        state.readerControls = false;
+        reader.classList.remove('controls');
+        return;
+      }
+      const rect = $('.editor-scroll').getBoundingClientRect();
+      const ratio = (event.clientY - rect.top) / rect.height;
+      if (ratio >= 1 / 3 && ratio <= 2 / 3) {
+        state.readerControls = true;
+        reader.classList.add('controls');
+      } else if (state.readPrefs.tapPaging) pageScreen(ratio < 1 / 3 ? -1 : 1);
     });
     document.addEventListener('input', (event) => {
       // 阅读亮度（data-reader-pref）与本章进度条；其余输入事件由各页面的监听处理。
@@ -82,10 +104,23 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       const el = event.target;
       if (el.dataset.readerPref) {
         setPanelValue(state.readPrefs, el.dataset.readerPref, Number(el.value));
-        $('.reader').style.filter = `brightness(${el.value}%)`;
+        $('.reader').style.filter = !isNative && !state.readPrefs.brightnessAuto ? `brightness(${el.value}%)` : '';
+        syncReader(state.readPrefs);
       }
       if (el.matches('.reader-progress input')) readerSession?.jump(state.chapter, Number(el.value));
     });
+    document.addEventListener('change', (event) => {
+      if (!(event.target instanceof HTMLInputElement) || !event.target.dataset.readSwitch) return;
+      setPanelValue(state.readPrefs, event.target.dataset.readSwitch, event.target.checked);
+      const brightness = document.querySelector<HTMLInputElement>('[data-reader-pref="brightness"]');
+      if (brightness) brightness.disabled = state.readPrefs.brightnessAuto;
+      applyAppearance(ctx);
+      syncReader(state.readPrefs);
+    });
+    if (isNative) {
+      const volume = MoyeNative.addListener('volumeKey', ({ direction }) => pageScreen(direction === 'up' ? -1 : 1));
+      ctx.onDispose(() => { void volume.then(handle => handle.remove()); });
+    }
   }
 
   const actions: Record<string, ActionHandler> = {

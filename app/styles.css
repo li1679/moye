@@ -123,14 +123,13 @@ body { min-height: 100dvh; }
 .chosen-tool .tool-bubble { border-color: var(--c-ink); background: var(--c-ink); color: var(--c-on-strong); }
 
 /* 阅读器 */
-.reader-label, .reader-footer { color: color-mix(in srgb, var(--text) 50%, transparent); font-size: var(--fs-s); font-variant-numeric: tabular-nums; }
-.reader-label { padding-top: var(--sp-3); letter-spacing: .08em; }
+.reader-footer { color: color-mix(in srgb, var(--text) 50%, transparent); font-size: var(--fs-s); font-variant-numeric: tabular-nums; }
 .reader .editor-heading { margin: var(--sp-5) 0 var(--sp-6); padding: 0; border: 0; text-align: center; font-size: var(--fs-xl); }
-.reader .manuscript { min-height: 0; }
+.reader .manuscript { min-height: 0; font-family: var(--reader-font, inherit); text-align: justify; }
 .reading-chapter { padding-bottom: var(--sp-6); }
 .reading-end { padding: var(--sp-6) 0 40vh; color: var(--c-ink-2); font-size: var(--fs-s); text-align: center; }
 .reader-footer { display: flex; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-2) var(--margin) max(var(--sp-2), env(safe-area-inset-bottom)); }
-.reader-footer span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-footer > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader .reader-top, .reader .reader-progress, .reader .reader-bottom { position: absolute; left: 0; right: 0; z-index: 3; display: flex; background: var(--paper); opacity: 0; visibility: hidden; transition: translate .24s var(--ease), opacity .2s, visibility 0s linear .24s, background-color .3s; }
 .reader .reader-top { top: env(safe-area-inset-top); translate: 0 -100%; }
 .reader .reader-bottom { bottom: 0; height: calc(54px + env(safe-area-inset-bottom)); translate: 0 100%; }

@@ -1,6 +1,6 @@
 import { $ } from '../core/dom';
 import { icon } from '../kit/ui';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { MoyeNative, isNative } from '../features/native/native';
 import { nav } from './shelf';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
@@ -19,7 +19,7 @@ export function createMePage(ctx: Ctx): PageModule {
       const button = $<HTMLButtonElement>('[data-action="clear-cache"]');
       button.disabled = true;
       try {
-        if (Capacitor.isNativePlatform()) await registerPlugin<{ clearCache(): Promise<void> }>('TextDocuments').clearCache();
+        if (isNative) await MoyeNative.clearCache();
         else for (const key of await caches.keys()) await caches.delete(key);
         $<HTMLElement>('#cache-result').textContent = '缓存已清理';
       } catch (error) { $<HTMLElement>('#cache-result').textContent = '清理失败：' + String(error); }

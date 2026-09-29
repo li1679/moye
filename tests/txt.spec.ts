@@ -218,3 +218,14 @@ test('duplicate file requires explicit choice and import can open reading direct
   await toShelf(page);
   await expect(page.locator('.book').filter({ hasText: '重复检测' })).toHaveCount(2);
 });
+
+test('分享 TXT 会打开导入面板并识别章节', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('main.app-shell').waitFor();
+  await page.evaluate(async () => {
+    const share = await import('/features/native/share.ts');
+    await share.receiveShare({ name: '分享.txt', data: btoa(unescape(encodeURIComponent('第一章\n正文'))) });
+  });
+  await expect(page.locator('#txt-import-form')).toBeVisible();
+  await expect(page.locator('#txt-chapter option')).toHaveCount(1);
+});

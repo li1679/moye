@@ -24,8 +24,9 @@ async function controls(page: Page) {
 test('continuous scroll changes active chapter, restores by text and keeps position after typography changes', async ({ page }) => {
   await prepare(page);
   await reading(page);
-  await expect(page.locator('.reading-chapter')).toHaveCount(3);
-  await page.locator('.reading-chapter').nth(1).evaluate(element => {
+  expect(await page.locator('.reading-chapter').count()).toBeLessThanOrEqual(5);
+  await expect(page.locator('.reading-chapter[data-index="1"]')).toHaveCount(1);
+  await page.locator('.reading-chapter[data-index="1"]').evaluate(element => {
     const scroll = element.parentElement!;
     scroll.scrollTop += element.getBoundingClientRect().top - scroll.getBoundingClientRect().top + 900;
   });
@@ -237,4 +238,74 @@ test('theme presets update editor and reader colors and warn about low contrast'
   await page.locator('[data-action="read-preset:4"]').click();
   expect(await page.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--paper').trim())).toBe('#1b1a18');
   expect(await page.locator('.reader').evaluate(el => getComputedStyle(el).getPropertyValue('--text').trim())).toBe('#d9d3c7');
+});
+
+test('reader font and tidy display change presentation without editing source text', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await expect(page.locator('.reader .manuscript').first()).toHaveCSS('text-align', 'justify');
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="pref:readfontFamily:宋体"]').click();
+  const family = await page.locator('.reader .manuscript').first().evaluate(element => getComputedStyle(element).fontFamily);
+  expect(family).toMatch(/Songti SC|Noto Serif CJK SC/);
+  await page.locator('[data-action="pref:readtidy:紧凑"]').click();
+  await expect(page.locator('.reader .manuscript').first()).not.toContainText(/\n\s*\n/);
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="chapter-search"]').click();
+  await page.getByLabel('搜索文本').fill('　　清晨');
+  await expect(page.locator('#search-results .result')).toHaveCount(1);
+  await page.locator('#search-results .result').click();
+  await expect(page.locator('.reader .manuscript').first()).toContainText('　　清晨');
+  await page.locator('[data-action="home"]').click();
+  await page.locator('[data-action="tab:edit"]').click();
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  expect(await page.locator('.manuscript').textContent()).toContain('\n\n');
+});
+
+test('reader tap paging uses thirds and respects its setting', async ({ page }) => {
+  await prepare(page);
+  await reading(page);
+  const scroll = page.locator('.editor-scroll');
+  const box = (await scroll.boundingBox())!;
+  const point = (ratio: number) => ({ x: box.width / 2, y: box.height * ratio });
+  const initial = await scroll.evaluate(element => element.scrollTop);
+  await scroll.click({ position: point(.85) });
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBeGreaterThan(initial);
+  const lower = await scroll.evaluate(element => element.scrollTop);
+  await scroll.click({ position: point(.15) });
+  await expect.poll(() => scroll.evaluate(element => element.scrollTop)).toBeLessThan(lower);
+  await scroll.click({ position: point(.5) });
+  await expect(page.locator('.reader')).toHaveClass(/controls/);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.getByLabel('点击翻页').uncheck();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  const beforeHide = await scroll.evaluate(element => element.scrollTop);
+  await scroll.click({ position: point(.85) });
+  await expect(page.locator('.reader')).not.toHaveClass(/controls/);
+  expect(await scroll.evaluate(element => element.scrollTop)).toBe(beforeHide);
+  await scroll.click({ position: point(.85) });
+  await page.waitForTimeout(250);
+  expect(await scroll.evaluate(element => element.scrollTop)).toBe(beforeHide);
+});
+
+test('reader native preference switches persist and brightness auto disables slider', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  for (const label of ['音量键翻页', '屏幕常亮', '沉浸阅读']) await page.getByLabel(label).uncheck();
+  await page.getByLabel('亮度跟随系统').check();
+  await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.reload();
+  await expect(page.locator('.reader')).toBeVisible();
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await expect(page.getByLabel('音量键翻页')).not.toBeChecked();
+  await expect(page.getByLabel('屏幕常亮')).not.toBeChecked();
+  await expect(page.getByLabel('沉浸阅读')).not.toBeChecked();
+  await expect(page.getByLabel('亮度跟随系统')).toBeChecked();
+  await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
 });

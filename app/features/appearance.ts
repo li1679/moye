@@ -1,5 +1,6 @@
 import { $, $maybe } from '../core/dom';
 import { captureAnchor, restoreAnchor } from './editor/positions';
+import { isNative } from './native/native';
 import type { Ctx } from '../core/context';
 
 // 应用排版外观：字号、行距、纸色、字色、网格线，并保持阅读/编辑的滚动位置。
@@ -19,6 +20,13 @@ export function applyAppearance(ctx: Ctx): void {
   r.style.setProperty('--margin', (p.margin ?? 24) + 'px');
   r.style.setProperty('--bottom', (p.bottom ?? 80) + 'px');
   r.style.setProperty('--body-weight', state.page !== 'reader' && state.prefs.bold ? '600' : '400');
+  if (state.page === 'reader') {
+    r.style.setProperty('--reader-font', p.fontFamily === '宋体'
+      ? 'var(--font-serif)'
+      : p.fontFamily === '黑体'
+        ? 'var(--font-sans-cjk)'
+        : 'inherit');
+  }
   document.documentElement.style.setProperty(
     '--body-font',
     state.prefs.fontFamily === '宋体'
@@ -28,7 +36,7 @@ export function applyAppearance(ctx: Ctx): void {
         : 'inherit',
   );
   const reader = $maybe('.reader');
-  if (reader) reader.style.filter = `brightness(${state.readPrefs.brightness}%)`;
+  if (reader) reader.style.filter = !isNative && !state.readPrefs.brightnessAuto ? `brightness(${state.readPrefs.brightness}%)` : '';
   const m = $maybe('.manuscript');
   if (m) {
     m.classList.toggle('rules', state.page === 'editor' && state.prefs.grid);

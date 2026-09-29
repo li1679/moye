@@ -1,7 +1,7 @@
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { openStorage, commitInBatches, type Row } from './storage';
-import { emptyLibrary, DEFAULT_SESSION, toRows, fromRows, migrateRows, normalizeLibrary, rowId, bookRowValue, chapterRowValue, coverRowValue, SESSION_KEYS, FIELD_ROWS, type Library, type Chapter, type Book } from './schema';
+import { emptyLibrary, DEFAULT_SESSION, SCHEMA_VERSION, toRows, fromRows, migrateRows, normalizeLibrary, rowId, bookRowValue, chapterRowValue, coverRowValue, SESSION_KEYS, FIELD_ROWS, type Library, type Chapter, type Book } from './schema';
 
 export const persistentFields = ['books', ...FIELD_ROWS];
 const fields: readonly string[] = FIELD_ROWS;
@@ -51,14 +51,15 @@ export async function persistState<T extends LibraryState>(initial: T): Promise<
     for (const row of fresh) rows.set(row.id, row.value);
   } else {
     const schema = rows.get('schema');
-    if (schema === '1') {
+    const version = Number(schema);
+    if (Number.isInteger(version) && version >= 1 && version < SCHEMA_VERSION) {
       const { upserts, deletes } = migrateRows(rows);
       await commitInBatches(storage, upserts, deletes);
       for (const row of upserts) rows.set(row.id, row.value);
       for (const id of deletes) rows.delete(id);
-    } else if (Number(schema) > 2) {
+    } else if (version > SCHEMA_VERSION) {
       throw new Error('数据库版本比当前应用新，请更新墨页后再打开；本机数据未被修改。');
-    } else if (schema !== '2') {
+    } else if (schema !== String(SCHEMA_VERSION)) {
       throw new Error('不支持的数据库版本，未覆盖原数据');
     }
   }

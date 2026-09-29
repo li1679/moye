@@ -496,9 +496,13 @@ function isLineType(value: string): value is Prefs['lineType'] {
     pref(arg, arg2) {
       if (arg === undefined || arg2 === undefined) return;
       const value: string | number = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
+      const readingPosition = state.page === 'reader' && arg === 'readtidy' ? ctx.reader.session()?.capture() : null;
       if (arg.startsWith("read")) setPanelValue(state.readPrefs, arg.slice(4), value);
       else setPanelValue(state.prefs, arg, value);
-      applyAppearance(ctx);
+      if (readingPosition) {
+        ctx.render();
+        ctx.reader.session()?.restore(readingPosition);
+      } else applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
     'theme-preset'(arg) {
