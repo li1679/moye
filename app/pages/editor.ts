@@ -296,7 +296,13 @@ function isLineType(value: string): value is Prefs['lineType'] {
       return;
     }
     resetHistory(c.id ??= crypto.randomUUID());
-    ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count">本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
+    ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count"><span class="save-dot" data-state="saved" aria-hidden="true"></span>本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
+    const saveDot = $<HTMLElement>('.save-dot');
+    const updateSaveDot = (event: Event) => {
+      if (event instanceof CustomEvent && ['dirty', 'saving', 'saved', 'failed'].includes(event.detail)) saveDot.dataset.state = event.detail;
+    };
+    document.addEventListener('moye:save-state', updateSaveDot);
+    ctx.onDispose(() => document.removeEventListener('moye:save-state', updateSaveDot));
     applyAppearance(ctx);
     updateHistoryTools();
     installToolbarInteractions();

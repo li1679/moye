@@ -83,6 +83,9 @@ body { min-height: 100dvh; }
 .editor .icon:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
 .editor-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-3) var(--margin) var(--bottom); scroll-behavior: smooth; overscroll-behavior-y: contain; }
 .editor-heading { min-height: var(--tap); margin: var(--sp-1) 0 var(--sp-4); padding-bottom: var(--sp-3); overflow-wrap: anywhere; border-bottom: 1px solid color-mix(in srgb, var(--text) 14%, transparent); font-family: var(--font-serif); font-size: var(--fs-xxl); font-weight: 700; }
+.save-dot { display: inline-block; width: var(--sp-2); height: var(--sp-2); margin-right: var(--sp-2); border-radius: 50%; background: var(--c-ink-3); }
+.save-dot[data-state="dirty"], .save-dot[data-state="saving"] { background: var(--c-seal); }
+.save-dot[data-state="failed"] { background: var(--c-danger); }
 .word-count { float: right; margin: var(--sp-1) 0; padding: var(--sp-1) var(--sp-3); border: 1px solid color-mix(in srgb, var(--text) 30%, transparent); border-radius: var(--sp-5); color: color-mix(in srgb, var(--text) 65%, transparent); font-size: var(--fs-s); font-variant-numeric: tabular-nums; }
 .manuscript { min-height: max(100px, calc(var(--viewport-height) - 270px)); outline: 0; overflow-wrap: anywhere; white-space: pre-wrap; caret-color: var(--text); color: var(--text); font-size: var(--font-size); font-weight: var(--body-weight); line-height: var(--leading); }
 .editor:not(.reader) .manuscript { font-family: var(--body-font, inherit); }

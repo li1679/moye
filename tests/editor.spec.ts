@@ -90,6 +90,15 @@ test('undo history is cleared after leaving the chapter', async ({ page }) => {
   await expect(editor(page)).toHaveText('第三次修改');
 });
 
+test('editor save dot follows dirty and saved autosave states', async ({ page }) => {
+  await open(page);
+  const dot = page.locator('.save-dot');
+  await expect(dot).toHaveAttribute('data-state', 'saved');
+  await editor(page).fill('等待保存的正文');
+  await expect(dot).toHaveAttribute('data-state', 'dirty');
+  await expect(dot).toHaveAttribute('data-state', 'saved');
+});
+
 test('replace selected occurrence and undo all replacements in one step', async ({ page }) => {
   await open(page);
   await editor(page).fill('苹果，苹果，苹果');
