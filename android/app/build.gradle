@@ -7,10 +7,26 @@ kotlin {
 
 def appPackage = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json'))
 def appVersion = appPackage.version.tokenize('.').collect { it.toInteger() }
+def signingPropertiesFile = rootProject.file('keystore.properties')
+def signingProperties = new Properties()
+if (signingPropertiesFile.exists()) {
+    signingProperties.load(new FileInputStream(signingPropertiesFile))
+}
+
 
 android {
     namespace = "com.localediting.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        release {
+            if (signingPropertiesFile.exists()) {
+                storeFile rootProject.file(signingProperties['storeFile'])
+                storePassword signingProperties['storePassword']
+                keyAlias signingProperties['keyAlias']
+                keyPassword signingProperties['keyPassword']
+            }
+        }
+    }
     defaultConfig {
         applicationId "com.localediting.app"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -30,6 +46,7 @@ android {
             versionNameSuffix "-debug"
         }
         release {
+            if (signingPropertiesFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

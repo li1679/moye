@@ -26,7 +26,7 @@ npm run build
 
 ## Android 构建
 
-在本机配置 `JAVA_HOME` 和 `android/local.properties` 中的 `sdk.dir`。正式版使用用户自己的签名密钥；密钥、密码、本机 SDK 路径、缓存与安装包不提交到仓库。
+在本机配置 `JAVA_HOME` 和 Android SDK。Release 签名从 `android/keystore.properties` 读取，密钥路径相对于 `android/`；密钥、密码、本机 SDK 路径、缓存与安装包不提交到仓库。
 
 调试包名称为“墨页测试”，使用独立的 application id 后缀，可以和正式版同时安装：
 
@@ -37,14 +37,14 @@ Set-Location android
 .\gradlew.bat :app:assembleDebug --console=plain
 ```
 
-Release 包的构建步骤如下，构建出的 APK 默认未签名；请按自己的 Android 发布流程签名后安装：
+Release 包的构建步骤如下。存在 `android/keystore.properties` 时会直接生成已签名的 `app-release.apk`；没有签名配置时只会生成不可直接安装的未签名 APK：
 
 ```powershell
 Set-Location android
 .\gradlew.bat :app:assembleRelease --console=plain
 ```
 
-输出位于 `android/app/build/outputs/apk/`。更换签名会影响覆盖安装；覆盖安装之前，先从应用内导出一次完整备份，并长期妥善保存实际使用的签名密钥。
+输出位于 `android/app/build/outputs/apk/`。更换或丢失签名密钥会导致以后无法覆盖升级；覆盖安装之前，先从应用内导出一次完整备份，并把 `android/signing/moye-release.jks` 和 `android/keystore.properties` 一起离线备份。
 
 ## 验证
 
