@@ -130,6 +130,9 @@ body { min-height: 100dvh; }
 .reading-end { padding: var(--sp-6) 0 40vh; color: var(--c-ink-2); font-size: var(--fs-s); text-align: center; }
 .reader-footer { display: flex; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-2) var(--margin) max(var(--sp-2), env(safe-area-inset-bottom)); }
 .reader-footer > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-footer-meta, .reader-status { display: flex; align-items: center; gap: var(--sp-2); }
+.reader-status[hidden], #reader-battery[hidden] { display: none; }
+.reader-status::after { content: '·'; }
 .reader .reader-top, .reader .reader-progress, .reader .reader-bottom { position: absolute; left: 0; right: 0; z-index: 3; display: flex; background: var(--paper); opacity: 0; visibility: hidden; transition: translate .24s var(--ease), opacity .2s, visibility 0s linear .24s, background-color .3s; }
 .reader .reader-top { top: env(safe-area-inset-top); translate: 0 -100%; }
 .reader .reader-bottom { bottom: 0; height: calc(54px + env(safe-area-inset-bottom)); translate: 0 100%; }

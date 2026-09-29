@@ -21,6 +21,44 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
   // 阅读区按下的位置与时间，用来区分"点按呼出控制栏"和拖动、滚动、长按。
   let readingPointer: { x: number; y: number; time: number; scroll: number } | null = null;
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let clockTimer: ReturnType<typeof setInterval> | undefined;
+  let batteryTimer: ReturnType<typeof setInterval> | undefined;
+  const timeFormat = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
+  function stopImmersiveFooter(): void {
+    clearInterval(clockTimer);
+    clearInterval(batteryTimer);
+    clockTimer = undefined;
+    batteryTimer = undefined;
+  }
+  function syncImmersiveFooter(): void {
+    stopImmersiveFooter();
+    const status = document.querySelector<HTMLElement>('.reader-status');
+    const time = document.querySelector<HTMLElement>('#reader-time');
+    const battery = document.querySelector<HTMLElement>('#reader-battery');
+    if (!status || !time || !battery) return;
+    status.hidden = !state.readPrefs.immersive;
+    battery.hidden = true;
+    if (!state.readPrefs.immersive) return;
+    const updateTime = () => { time.textContent = timeFormat.format(new Date()); };
+    const updateBattery = async () => {
+      if (!isNative || !state.readPrefs.immersive) return;
+      try {
+        const value = await MoyeNative.getBattery();
+        if (!state.readPrefs.immersive || !battery.isConnected) return;
+        battery.textContent = `电量 ${value.level}%${value.charging ? ' · 充电中' : ''}`;
+        battery.hidden = false;
+      } catch {
+        battery.hidden = true;
+      }
+    };
+    updateTime();
+    clockTimer = setInterval(updateTime, 30_000);
+    if (isNative) {
+      void updateBattery();
+      batteryTimer = setInterval(() => { void updateBattery(); }, 60_000);
+    }
+  }
 
   function nightLabel(): string {
     return (state.readPrefs.night ?? ['#202123', '#1b1a18'].includes(state.readPrefs.paper))
@@ -47,7 +85,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       return;
     }
     const b = needBook(state);
-    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span><span id="chapter-position">${state.chapter + 1}/${b.chapters.length}</span> · <span id="progress-value">0%</span></span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
+    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span class="reader-footer-meta"><span class="reader-status" hidden><span id="reader-time"></span><span id="reader-battery" hidden></span></span><span><span id="chapter-position">${state.chapter + 1}/${b.chapters.length}</span> · <span id="progress-value">0%</span></span></span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
     applyAppearance(ctx);
     const scroll = $(".editor-scroll");
     b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
@@ -62,6 +100,8 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       $<HTMLButtonElement>('[data-action="reader-step:1"]').disabled = position.chapter === b.chapters.length - 1;
     }, ctx.toast, chapter => displayBody(chapter, state.readPrefs.tidy));
     ctx.onDispose(() => { readerSession?.destroy(); readerSession = null; });
+    ctx.onDispose(stopImmersiveFooter);
+    syncImmersiveFooter();
     applyAppearance(ctx);
   }
 
@@ -116,6 +156,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       if (brightness) brightness.disabled = state.readPrefs.brightnessAuto;
       applyAppearance(ctx);
       syncReader(state.readPrefs);
+      syncImmersiveFooter();
     });
     if (isNative) {
       const volume = MoyeNative.addListener('volumeKey', ({ direction }) => pageScreen(direction === 'up' ? -1 : 1));

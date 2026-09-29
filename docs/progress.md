@@ -92,8 +92,15 @@
 - [x] 6.1 版本号（package.json 与 package-lock.json 更新到 1.1.0；Android versionCode 读取版本号计算为 10100，versionName 同步为 1.1.0）
 - [x] 6.2 清理死代码（严格 noUnusedLocals/noUnusedParameters 检查通过；删除未使用的 InputSession 和 directory.ts 导入；旧插件、旧标签及无用导出残留扫描通过）
 - [x] 6.3 文档（更新 README 的开发、测试、备份兼容、调试包与 Release 说明；新增 CHANGELOG.md；更新 CLAUDE.md 目录结构和发布说明）
-- [ ] 6.4 最终回归
-- [ ] 6.5 交付
+- [x] 6.4 最终回归（补齐沉浸阅读页脚：时间每 30 秒更新，原生电量每 60 秒更新，离开阅读器清理定时器；严格未使用检查、typecheck、Web build 和全量 Playwright 142/142 通过；JDK 21 下 Android `assembleRelease` 输出 `BUILD SUCCESSFUL`）
+- [x] 6.5 交付（生成未签名 `app-release-unsigned.apk`；versionName 1.1.0、versionCode 10100、SHA-256 `F7F8E1DE91D7E1A42A8A5AC97B1AAE18EA6F9EAC05F0A833E2587AA2E4B3D1D9`；正式安装前需用用户自己的密钥签名）
+
+### 最终性能对比（大书库 1500 章，第 0 批基线 → 第 6 批最终回归）
+- 书架可见：367 → 1710 ms
+- 章节列表（1500 行）：208 → 516 ms
+- 打开阅读器：548 → 213 ms
+- 打开目录：431 → 292 ms
+- 目录跳到第 1001 章：944 → 99 ms
 
 ## 发现的问题
 （不在本方案范围内、但值得以后处理的问题）
