@@ -199,8 +199,15 @@ export function createSearchUi(ctx: Ctx): SearchUi {
         searchResults();
         return;
       }
+      const session = state.page === 'reader' && state.book === hit.bookId ? ctx.reader.session() : null;
       state.book = hit.bookId;
       state.chapter = index;
+      if (session) {
+        session.jump(index);
+        ctx.closeSheet();
+        requestAnimationFrame(() => ctx.editor.locateText(hit.offset, hit.match.length));
+        return;
+      }
       state.page = state.tab === "read" ? "reader" : "editor";
       if (state.page === 'reader') state.reading[state.book] = { chapter: index, chapterId: hit.chapterId, scroll: 0 };
       ctx.closeSheet();

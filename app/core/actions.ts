@@ -12,7 +12,8 @@ export function registerActions(module: PageModule): void {
 export function createDispatcher(ctx: Ctx) {
   return async function dispatch(a: string): Promise<void> {
     const [kind, arg, arg2, arg3] = a.split(':');
-    if (['tab', 'home', 'book', 'chapters', 'chapter', 'jump-chapter', 'match-hit'].includes(kind) && !(kind === 'match-hit' && $('#replacement'))) {
+    const keepReader = ctx.state.page === 'reader' && (kind === 'jump-chapter' || kind === 'match-hit');
+    if (!keepReader && ['tab', 'home', 'book', 'chapters', 'chapter', 'jump-chapter', 'match-hit'].includes(kind) && !(kind === 'match-hit' && $('#replacement'))) {
       ctx.dispose();
     }
     const handler = Object.prototype.hasOwnProperty.call(actions, kind) ? actions[kind] : null;

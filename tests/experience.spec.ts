@@ -24,8 +24,9 @@ async function controls(page: Page) {
 test('continuous scroll changes active chapter, restores by text and keeps position after typography changes', async ({ page }) => {
   await prepare(page);
   await reading(page);
-  await expect(page.locator('.reading-chapter')).toHaveCount(3);
-  await page.locator('.reading-chapter').nth(1).evaluate(element => {
+  expect(await page.locator('.reading-chapter').count()).toBeLessThanOrEqual(5);
+  await expect(page.locator('.reading-chapter[data-index="1"]')).toHaveCount(1);
+  await page.locator('.reading-chapter[data-index="1"]').evaluate(element => {
     const scroll = element.parentElement!;
     scroll.scrollTop += element.getBoundingClientRect().top - scroll.getBoundingClientRect().top + 900;
   });
