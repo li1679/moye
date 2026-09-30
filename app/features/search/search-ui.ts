@@ -7,9 +7,9 @@ import { bookWords } from '../editor/text-tools';
 import { displayBody } from '../reader/display';
 import type { ActionHandler, Ctx, PageModule } from '../../core/context';
 
-// 各搜索面板与结果处理（2.9 从 prototype.js 拆出）：全部书籍/本书/本章搜索、书名搜索、
-// 查找替换面板与命中跳转。编辑器的 find 工具和书架的书名搜索经组装层从这里注入。
-export type SearchUi = PageModule & {
+// 全文和书名搜索、查找替换面板与命中跳转。
+// 编辑器的 find 工具和书架搜索经组装层从这里注入。
+type SearchUi = PageModule & {
   search(scope?: string, replace?: boolean, initial?: string): void;
   searchBooks(): void;
   searchHit(): { chapterId: string; offset: number } | null;
@@ -67,7 +67,6 @@ export function createSearchUi(ctx: Ctx): SearchUi {
       for (const b of scope === 'global' ? state.books : [needBook(state)]) {
         b.chapters.forEach((c, i) => {
           if (scope === 'chapter' && i !== state.chapter) return;
-          c.id ??= crypto.randomUUID();
           documents.push({ bookId: b.id, chapterId: c.id, title: c.name, bookName: b.name, body: searchBody(c) });
         });
       }

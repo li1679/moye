@@ -1,6 +1,6 @@
 import { MoyeNative } from './native';
 
-export type SharePayload = { name?: string; data?: string; error?: string };
+type SharePayload = { name?: string; data?: string; error?: string };
 type ShareHandler = (file: File) => void | Promise<void>;
 
 let handler: ShareHandler | null = null;

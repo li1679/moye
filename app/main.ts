@@ -1,13 +1,9 @@
 import { installPickers } from './features/editor/pickers';
-installPickers();
 import { installViewport } from './features/editor/viewport';
-installViewport();
+import { localDate } from './kit/date';
 
-/** 本地时区的 YYYY-MM-DD。 */
-function localDate(date = new Date()) {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
+installPickers();
+installViewport();
 
 async function exportRawRows(button: HTMLButtonElement, result: HTMLElement) {
   button.disabled = true;

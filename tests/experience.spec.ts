@@ -113,7 +113,7 @@ test('reading shelf shows whole-book progress and sorts by most recent reading',
   await expect(page.locator('[data-action="read-sort:manual"]')).toContainText('按手动顺序排序');
 });
 
-test('settings keep panel and reading positions, isolate colors and center the heading', async ({ page }) => {
+test('settings keep panel and reading positions while sharing colors with the reader', async ({ page }) => {
   await prepare(page);
   await reading(page);
   await page.locator('.editor-scroll').evaluate(el => { el.scrollTop = 1400; });
@@ -131,13 +131,15 @@ test('settings keep panel and reading positions, isolate colors and center the h
   expect(await node!.evaluate(el => el === document.querySelector('#sheet .sheet-content'))).toBe(true);
   expect(await content.evaluate(el => el.scrollTop)).toBe(offset);
   expect(await page.locator('.editor-scroll').evaluate(el => el.scrollTop)).toBe(1400);
-  expect(await page.locator('#sheet').evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual(colors);
+  const updatedTheme = await page.locator('.reader').evaluate(el => [getComputedStyle(el).getPropertyValue('--paper').trim(), getComputedStyle(el).getPropertyValue('--text').trim()]);
+  expect(updatedTheme).toEqual(['#e4ede4', '#27313d']);
+  expect(await page.locator('#sheet').evaluate(el => [getComputedStyle(el).getPropertyValue('--theme-paper').trim(), getComputedStyle(el).getPropertyValue('--theme-ink').trim()])).toEqual(updatedTheme);
   const title = (await page.locator('#sheet h2').boundingBox())!, sheet = (await page.locator('#sheet').boundingBox())!;
   expect(Math.abs(title.x + title.width / 2 - sheet.x - sheet.width / 2)).toBeLessThan(1);
   await page.screenshot({ path: 'test-results/reader-settings-fixed.png', animations: 'disabled' });
   await page.getByRole('button', { name: '关闭', exact: true }).click();
   await page.locator('[data-action="directory"]').click();
-  expect(await page.locator('#sheet').evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual(colors);
+  expect(await page.locator('#sheet').evaluate(el => [getComputedStyle(el).getPropertyValue('--theme-paper').trim(), getComputedStyle(el).getPropertyValue('--theme-ink').trim()])).toEqual(updatedTheme);
 });
 
 test('chapter slider stays on the same chapter at both endpoints across repeated seeks', async ({ page }) => {
@@ -299,17 +301,128 @@ test('reader native preference switches persist and brightness auto disables sli
   await expect(page.locator('.reader-status')).toBeVisible();
   await expect(page.locator('#reader-time')).toHaveText(/^\d{2}:\d{2}$/);
   await expect(page.locator('#reader-battery')).toBeHidden();
-  for (const label of ['音量键翻页', '屏幕常亮', '沉浸阅读']) await page.getByLabel(label).uncheck();
+  await expect(page.getByLabel('音量键翻页')).toHaveCount(0);
+  for (const label of ['屏幕常亮', '沉浸阅读']) await page.getByLabel(label).uncheck();
   await page.getByLabel('亮度跟随系统').check();
   await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
   await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.locator('.save-status')).toHaveText('已保存');
   await page.reload();
   await expect(page.locator('.reader')).toBeVisible();
   await controls(page);
   await page.locator('[data-action="reader-settings"]').click();
-  await expect(page.getByLabel('音量键翻页')).not.toBeChecked();
+  await expect(page.getByLabel('音量键翻页')).toHaveCount(0);
   await expect(page.getByLabel('屏幕常亮')).not.toBeChecked();
   await expect(page.getByLabel('沉浸阅读')).not.toBeChecked();
   await expect(page.getByLabel('亮度跟随系统')).toBeChecked();
   await expect(page.locator('[data-reader-pref="brightness"]')).toBeDisabled();
+});
+
+test('reader theme presets keep night toggle and browser theme color in sync', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="read-preset:4"]').click();
+  await expect(page.locator('[data-action="night"]')).toContainText('日间');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1b1a18');
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="night"]').click();
+  await expect(page.locator('[data-action="night"]')).toContainText('夜间');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f6f1e7');
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="read-preset:1"]').click();
+  await expect(page.locator('[data-action="night"]')).toContainText('夜间');
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="night"]').click();
+  await page.locator('[data-action="night"]').click();
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fbf8f2');
+});
+
+test('saved global theme applies on the shelf after a cold reload', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="read-preset:4"]').click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.locator('[data-action="home"]').click();
+  await expect(page.locator('.save-status')).toHaveText('已保存');
+  await page.reload();
+  await expect(page.locator('.home')).toHaveCSS('background-color', 'rgb(27, 26, 24)');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#1b1a18');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme)).toBe('dark');
+});
+
+test('reader colors remain consistent in layout and editor sheets after earlier editing', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  await page.getByRole('button', { name: '返回目录', exact: true }).click();
+  await page.getByRole('button', { name: '返回书架', exact: true }).click();
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="read-preset:4"]').click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--text').trim())).toBe('#d9d3c7');
+  await page.locator('[data-action="home"]').click();
+  await page.locator('[data-action="tab:edit"]').click();
+  await page.locator('[data-action="book:1"]').click();
+  await page.locator('[data-action="chapter:0"]').click();
+  await page.locator('[data-action="tool:settings"]').click();
+  await expect(page.locator('#sheet')).toHaveCSS('color', 'rgb(217, 211, 199)');
+  await page.locator('[data-action="layout"]').click();
+  const slot = page.locator('[data-action="slot:top:0"]');
+  expect(await slot.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)?.closest('button') === element;
+  })).toBe(true);
+  await slot.click();
+  await expect(page.locator('#sheet')).toHaveCSS('color', 'rgb(217, 211, 199)');
+  await expect(page.locator('#sheet')).toHaveCSS('background-color', 'rgb(27, 26, 24)');
+});
+
+test('completed empty chapter preserves 100 percent across reload and color changes', async ({ page }) => {
+  await page.goto('/');
+  await reading(page);
+  await controls(page);
+  await page.locator('[data-action="reader-step:1"]').click();
+  await page.locator('[data-action="reader-step:1"]').click();
+  await page.locator('.reader-progress input').fill('100');
+  await expect(page.locator('#progress-value')).toHaveText('100%');
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="read-preset:3"]').click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.locator('#progress-value')).toHaveText('100%');
+  await expect(page.locator('.save-status')).toHaveText('已保存');
+  await page.reload();
+  await expect(page.locator('#chapter-position')).toHaveText('3/3');
+  await expect(page.locator('#progress-value')).toHaveText('100%');
+});
+
+test('leaving immediately after crossing a chapter saves the visible chapter', async ({ page }) => {
+  await prepare(page);
+  await reading(page);
+  await page.evaluate(() => {
+    const scroll = document.querySelector<HTMLElement>('.editor-scroll')!;
+    const next = scroll.querySelector<HTMLElement>('.reading-chapter[data-index="1"]')!;
+    scroll.scrollTop += next.getBoundingClientRect().top - scroll.getBoundingClientRect().top + 300;
+    document.querySelector<HTMLButtonElement>('[data-action="home"]')!.click();
+  });
+  await expect(page.locator('.home')).toBeVisible();
+  await page.locator('[data-action="book:1"]').click();
+  await expect(page.locator('#chapter-position')).toHaveText('2/3');
+});
+
+test('changing typography at chapter endpoints keeps the endpoint rather than advancing', async ({ page }) => {
+  await prepare(page);
+  await reading(page);
+  await controls(page);
+  await page.locator('.reader-progress input').fill('100');
+  await page.locator('[data-action="reader-settings"]').click();
+  await page.locator('[data-action="pref:readfont:26"]').click();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.locator('#chapter-position')).toHaveText('1/3');
+  await expect(page.locator('#progress-value')).toHaveText('100%');
 });

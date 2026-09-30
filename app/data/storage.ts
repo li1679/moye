@@ -1,7 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
+import type { Row } from './schema';
 
-export type Row = { id: string; value: string };
+export type { Row } from './schema';
 export interface Storage {
   read(): Promise<Map<string, string>>;
   commit(upserts: Row[], deletes: string[]): Promise<void>;

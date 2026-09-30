@@ -1,6 +1,6 @@
-// 全书排版、全书替换的短时撤销：只存在内存里，离开这本书就失效（D-03）。
-export type BookChange = { chapterId: string; before: string; after: string };
-export type BookUndoEntry = { bookId: number; label: '全书排版' | '全书替换'; changes: BookChange[] };
+// 全书排版、全书替换的短时撤销：只存在内存里，离开这本书就失效。
+type BookChange = { chapterId: string; before: string; after: string };
+type BookUndoEntry = { bookId: number; label: '全书排版' | '全书替换'; changes: BookChange[] };
 
 let entry: BookUndoEntry | null = null;
 export function rememberBookChange(next: BookUndoEntry) { entry = next; }

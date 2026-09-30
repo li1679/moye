@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { openStorage, commitInBatches, type Row } from './storage';
 import { emptyLibrary, DEFAULT_SESSION, SCHEMA_VERSION, toRows, fromRows, migrateRows, normalizeLibrary, rowId, bookRowValue, chapterRowValue, coverRowValue, SESSION_KEYS, FIELD_ROWS, type Library, type Chapter, type Book } from './schema';
 
-export const persistentFields = ['books', ...FIELD_ROWS];
+const persistentFields = ['books', ...FIELD_ROWS];
 const fields: readonly string[] = FIELD_ROWS;
 type LibraryState = { books: Book[]; [key: string]: unknown };
 const replacers = new WeakMap<object, (value: LibraryState) => Promise<void>>();

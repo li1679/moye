@@ -58,3 +58,21 @@ test('无图封面按书籍 id 稳定分配纸墨题签', async ({ page }) => {
   await expect(page.locator('.cover-picker .cover-label strong')).toHaveText('书名');
   await expect(page.locator('.cover-picker .cover-seal')).toHaveCount(1);
 });
+
+test('长书名预览保持在封面标签内并实时更新', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="new-book"]').click();
+  const name = '这是一个很长很长的调试书名用于检查封面标题布局';
+  await page.locator('#book-name').fill(name);
+  await expect(page.locator('.cover-picker .cover-label strong')).toHaveText(name);
+  const boxes = await page.locator('.cover-picker .cover-label, .cover-picker .cover-label strong, .cover-picker .cover-seal').evaluateAll(elements => elements.map(element => {
+    const box = element.getBoundingClientRect();
+    return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
+  }));
+  const [label, title, seal] = boxes;
+  expect(title.left).toBeGreaterThanOrEqual(label.left);
+  expect(title.right).toBeLessThanOrEqual(label.right);
+  expect(title.top).toBeGreaterThanOrEqual(label.top);
+  expect(title.bottom).toBeLessThanOrEqual(seal.top);
+  expect(seal.right).toBeLessThanOrEqual(label.right);
+});

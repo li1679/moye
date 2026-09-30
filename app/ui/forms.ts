@@ -4,9 +4,9 @@ import { needBook, nextLibraryOrder } from '../core/library';
 import { compressCover } from '../features/covers';
 import type { Ctx } from '../core/context';
 
-// 书籍表单、简单输入表单、确认删除弹层、封面选择与表单提交（2.10 从 prototype.js 拆出）。
+// 书籍表单、简单输入表单、确认删除弹层、封面选择与表单提交。
 // 书架（新建/修改/删除书籍、新建/重命名分组）与章节页（删除确认）经组装层从这里注入。
-export type Forms = {
+type Forms = {
   bookForm(edit?: boolean): void;
   inputForm(title: string, label: string, action: string, value?: string): void;
   confirmSheet(title: string, message: string, action: string): void;
@@ -61,6 +61,14 @@ export function createForms(ctx: Ctx): Forms {
       } finally {
         submit.disabled = false;
       }
+    });
+    document.addEventListener("input", (e) => {
+      if (!(e.target instanceof HTMLInputElement) || !['book-name', 'book-author'].includes(e.target.id) || formImage) return;
+      const picker = document.querySelector<HTMLButtonElement>('.cover-picker');
+      if (!picker) return;
+      const name = document.querySelector<HTMLInputElement>('#book-name')?.value.trim() || '书名';
+      const author = document.querySelector<HTMLInputElement>('#book-author')?.value.trim() || '';
+      picker.innerHTML = `${cover({ name, author })}<span>选择封面</span>`;
     });
     document.addEventListener("submit", (e) => {
       e.preventDefault();

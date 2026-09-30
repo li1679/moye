@@ -1,6 +1,6 @@
-import type { SelectionPosition } from './positions';
+import type { SelectionPosition } from '../../data/schema';
 
-export type InputLike = {
+type InputLike = {
   inputType: string;
   data?: string | null;
   dataTransfer?: DataTransfer | null;

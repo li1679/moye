@@ -2,7 +2,9 @@ import { $ } from './dom';
 import type { Ctx } from './context';
 import { currentBookUndo, clearBookUndo } from '../features/editor/book-undo';
 import { syncReader } from '../features/native/native';
-export type RouterPages = {
+import { applyTheme } from '../features/appearance';
+
+type RouterPages = {
   editor(): void;    // 编辑页
   reader(): void;    // 阅读页
   layout(): void;    // 页面布局编辑
@@ -103,6 +105,7 @@ export function createRouter(ctx: Ctx, pages: RouterPages) {
     const before = last;
     if (before?.page === 'chapters' && before.book !== null) chapterScroll.set(before.book, window.scrollY);
     const old = ctx.app.firstElementChild;
+    applyTheme(state.prefs);
     doRender(before);
     last = snapshot();
     syncReader(state.page === 'reader' ? state.readPrefs : null);

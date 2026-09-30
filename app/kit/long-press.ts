@@ -1,4 +1,4 @@
-export type LongPressHandler = (target: HTMLElement, event: PointerEvent) => void;
+type LongPressHandler = (target: HTMLElement, event: PointerEvent) => void;
 
 export function onLongPress(
   root: Element,

@@ -40,7 +40,7 @@ export type ReadPrefs = {
   fontFamily: '系统默认' | '宋体' | '黑体';   // 阅读器设置和阅读正文读取。
   tidy: '关' | '紧凑' | '宽松';             // 阅读器显示正文和阅读搜索读取。
   tapPaging: boolean;                           // 阅读器点按上、下区域翻屏时读取。
-  volumePaging: boolean; keepAwake: boolean; immersive: boolean; brightnessAuto: boolean;
+  keepAwake: boolean; immersive: boolean; brightnessAuto: boolean;
   night?: boolean;
   themes?: { day: { paper: string; color: string }; night: { paper: string; color: string } };
   // 后续批次不再新增阅读偏好字段。
@@ -62,7 +62,7 @@ export const DEFAULT_PREFS: Prefs = {
   grid: false, near: true, thick: false, lineType: '短虚线', lineColor: '#dadde0',
   color: '#1f1d1a', paper: '#f6f1e7', fontFamily: '系统默认',
 };
-export const DEFAULT_READ_PREFS: ReadPrefs = { font: 20, line: 1.8, margin: 24, bottom: 80, paper: '#f6f1e7', color: '#1f1d1a', brightness: 100, fontFamily: '系统默认', tidy: '关', tapPaging: true, volumePaging: true, keepAwake: true, immersive: false, brightnessAuto: true };
+export const DEFAULT_READ_PREFS: ReadPrefs = { font: 20, line: 1.8, margin: 24, bottom: 80, paper: '#f6f1e7', color: '#1f1d1a', brightness: 100, fontFamily: '系统默认', tidy: '关', tapPaging: true, keepAwake: true, immersive: false, brightnessAuto: true };
 export const DEFAULT_TOOLBARS: Toolbars = { top: ['copy', 'format', 'undo', 'redo', 'directory', 'settings'], bottom: ['keyboard', 'find', 'top', 'bottom', null, null] };
 export const DEFAULT_SESSION: Session = { tab: 'edit', page: 'home', folder: null, book: null, chapter: 0 };
 
@@ -158,6 +158,8 @@ export function normalizeLibrary(raw: any, renamedChapters?: Set<string>): Libra
   const prefs = { ...base.prefs, ...raw.prefs };
   delete (prefs as Record<string, unknown>).autoScroll;
   delete (prefs as Record<string, unknown>).punctuation;
+  const readPrefs = { ...base.readPrefs, ...raw.readPrefs };
+  delete (readPrefs as Record<string, unknown>).volumePaging;   // 停用字段不进入运行时状态；本轮不增加旧数据迁移版本。
   const bookIds = new Set(books.map(book => String(book.id)));
   const chapterIds = new Set(books.flatMap(book => book.chapters.map(chapter => chapter.id)));
   const keep = <T>(record: Record<string, T> | undefined, ok: (key: string) => boolean) =>
@@ -170,7 +172,7 @@ export function normalizeLibrary(raw: any, renamedChapters?: Set<string>): Libra
     prefs,
     toolbars: normalizeToolbars(raw.toolbars ?? base.toolbars),   // 未知工具换成 null
     reading: keep(raw.reading, key => bookIds.has(key)),
-    readPrefs: { ...base.readPrefs, ...raw.readPrefs },
+    readPrefs,
     editing: keep(raw.editing, key => chapterIds.has(key)),
     restorePoint: raw.restorePoint ? { ...normalizeLibrary(raw.restorePoint), restorePoint: null } : null,
   };

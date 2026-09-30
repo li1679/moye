@@ -66,7 +66,8 @@ test('migrateRows 把版本 1 的行升级到版本 5', () => {
   const readingRow = upserts.find(row => row.id === 'reading');
   expect(JSON.parse(readingRow!.value)).not.toHaveProperty('999');
   const readPrefs = JSON.parse(upserts.find(row => row.id === 'readPrefs')!.value);
-  expect(readPrefs).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true, volumePaging: true, keepAwake: true, immersive: false, brightnessAuto: true });
+  expect(readPrefs).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true, keepAwake: true, immersive: false, brightnessAuto: true });
+  expect(readPrefs).not.toHaveProperty('volumePaging');
   const editingRow = upserts.find(row => row.id === 'editing');
   expect(JSON.parse(editingRow!.value)).not.toHaveProperty('nope');
 });
@@ -111,4 +112,14 @@ test('validateLibrary 能拒绝无效数据', () => {
   expect(() => validateLibrary({ ...base, books: [{ ...base.books[1], group: 999 }] })).toThrow('分组引用');
   expect(() => validateLibrary({ ...base, toolbars: { top: ['nope'], bottom: [] } })).toThrow('工具栏配置');
   expect(() => validateLibrary({ ...base, prefs: { ...base.prefs, color: '#12345' } })).toThrow('颜色无效');
+});
+
+test('停用音量键偏好不会进入运行时状态，其他阅读设置保持不变', () => {
+  const library = seededLibrary();
+  const rows = new Map(toRows(library).map(row => [row.id, row.value]));
+  rows.set('schema', '5');
+  rows.set('readPrefs', JSON.stringify({ ...library.readPrefs, volumePaging: true, keepAwake: false }));
+  const readPrefs = fromRows(rows).library.readPrefs as Record<string, unknown>;
+  expect(readPrefs).not.toHaveProperty('volumePaging');
+  expect(readPrefs.keepAwake).toBe(false);
 });

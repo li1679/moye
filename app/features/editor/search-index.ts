@@ -1,5 +1,5 @@
 import type { SearchDocument, SearchHit } from './text-tools';
-export type SearchPatch = { upserts: SearchDocument[]; deletes: string[]; order: string[] };
+type SearchPatch = { upserts: SearchDocument[]; deletes: string[]; order: string[] };
 export type SearchResult = { hits: SearchHit[]; total: number };
 type Checkpoint = { ordinal: number; document: number; offset: number };
 export class SearchIndex {

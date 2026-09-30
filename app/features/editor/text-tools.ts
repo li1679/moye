@@ -1,4 +1,4 @@
-export type FormatOptions = { indent: boolean; spaces: boolean; paragraph: string | number };
+type FormatOptions = { indent: boolean; spaces: boolean; paragraph: string | number };
 
 export function formatText(body: string, options: FormatOptions): string {
   const newline = body.match(/\r\n|\n|\r/)?.[0] || '\n';

@@ -1,8 +1,7 @@
-import { captureAnchor, restoreAnchor, type Anchor } from '../editor/positions';
+import type { Anchor, Chapter, ReadingPosition } from '../../data/schema';
+import { captureAnchor, restoreAnchor } from '../editor/positions';
 
-type Chapter = { id: string; name: string; body: string };
 type ReaderNode = { section: HTMLElement; body: HTMLElement };
-export type ReadingPosition = { chapter: number; chapterId?: string; scroll: number; anchor?: Anchor };
 
 const RADIUS = 1;
 const MAX = 5;
@@ -124,6 +123,20 @@ export function mountReader(
     while (first > 0 && scroll.scrollTop < scroll.clientHeight * EDGE) prepend();
     trim();
   };
+  const syncActive = (): boolean => {
+    fill();
+    if (seekTop !== undefined && Math.abs(scroll.scrollTop - seekTop) < 1) return true;
+    seekTop = undefined;
+    let low = first;
+    let high = last;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (top(nodes.get(mid)!.section) <= scroll.scrollTop + 18) low = mid;
+      else high = mid - 1;
+    }
+    active = low;
+    return false;
+  };
   const save = () => {
     if (!scroll.isConnected) return;
     const current = nodes.get(active);
@@ -141,20 +154,10 @@ export function mountReader(
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
-      fill();
-      if (seekTop !== undefined && Math.abs(scroll.scrollTop - seekTop) < 1) {
+      if (syncActive()) {
         save();
         return;
       }
-      seekTop = undefined;
-      let low = first;
-      let high = last;
-      while (low < high) {
-        const mid = Math.ceil((low + high) / 2);
-        if (top(nodes.get(mid)!.section) <= scroll.scrollTop + 18) low = mid;
-        else high = mid - 1;
-      }
-      active = low;
       clearTimeout(timer);
       const { start, length } = limits(active);
       update({ chapter: active, chapterId: chapters[active].id, scroll: Math.max(0, scroll.scrollTop - start) }, percentage(start, length));
@@ -180,14 +183,15 @@ export function mountReader(
   renderRange(Math.max(0, active - RADIUS), Math.min(chapters.length - 1, active + RADIUS));
   const match = saved?.chapterId ? chapters.findIndex(chapter => chapter.id === saved.chapterId) : saved?.chapter;
   const restored = saved && match === active;
-  jump(active);
-  if (restored) {
+  jump(active, restored ? saved.percent ?? 0 : 0);
+  if (restored && limits(active).length > 0 && saved.percent !== 100) {
     const current = nodes.get(active)!;
     if (saved.anchor) {
       if (!restoreAnchor(current.body, scroll, saved.anchor)) notice('原阅读位置的文字已变化，已定位到附近');
     } else {
       scroll.scrollTop = limits(active).start + saved.scroll;
     }
+    seekTop = scroll.scrollTop;
     save();
   }
   scroll.addEventListener('scroll', onScroll, { passive: true });
@@ -196,19 +200,28 @@ export function mountReader(
   return {
     jump,
     body: () => nodes.get(active)!.body,
-    capture: () => ({ chapter: active, anchor: captureAnchor(nodes.get(active)!.body, scroll) }),
-    restore(position: { chapter: number; anchor: Anchor }) {
+    capture: () => ({
+      chapter: active, anchor: captureAnchor(nodes.get(active)!.body, scroll),
+      endpoint: seekTop !== undefined && Math.abs(scroll.scrollTop - seekTop) < 1 && (seekProgress === 0 || seekProgress === 100) ? seekProgress : undefined,
+    }),
+    restore(position: { chapter: number; anchor: Anchor; endpoint?: number }) {
       const target = Math.max(0, Math.min(chapters.length - 1, position.chapter));
+      if (position.endpoint !== undefined) { jump(target, position.endpoint); return; }
       if (target < first || target > last) jump(target);
       active = target;
       restoreAnchor(nodes.get(active)!.body, scroll, position.anchor);
+      if (seekTop !== undefined) seekTop = scroll.scrollTop;
       save();
     },
     save,
     destroy() {
-      save();
       clearTimeout(timer);
       cancelAnimationFrame(frame);
+      frame = 0;
+      if (scroll.isConnected) {
+        syncActive();
+        save();
+      }
       scroll.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', save);
     },

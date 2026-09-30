@@ -30,9 +30,10 @@ export function openDirectory(ctx: Ctx, reverse = false): void {
     },
   );
   requestAnimationFrame(() => {
-    ctx.sheet.querySelector('.chapter-row.current')?.scrollIntoView({ block: 'center' });
-    detachDirectoryFastScroll?.();
+    const current = ctx.sheet.querySelector<HTMLElement>('.chapter-row.current');
     const content = ctx.sheet.querySelector<HTMLElement>('.sheet-content');
+    if (current && content) content.scrollTop = Math.max(0, current.offsetTop - content.clientHeight / 3);
+    detachDirectoryFastScroll?.();
     if (!content) return;
     const detach = attachFastScroll(content);
     detachDirectoryFastScroll = detach;

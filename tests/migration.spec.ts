@@ -56,7 +56,8 @@ test('版本 1 数据在启动时迁移到版本 5', async ({ page }) => {
   expect(JSON.parse(rows['reading'])).not.toHaveProperty('999');
   expect(JSON.parse(rows['prefs'])).not.toHaveProperty('autoScroll');
   expect(JSON.parse(rows['prefs'])).not.toHaveProperty('punctuation');
-  expect(JSON.parse(rows['readPrefs'])).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true, volumePaging: true, keepAwake: true, immersive: false, brightnessAuto: true });
+  expect(JSON.parse(rows['readPrefs'])).toMatchObject({ fontFamily: '系统默认', tidy: '关', tapPaging: true, keepAwake: true, immersive: false, brightnessAuto: true });
+  expect(JSON.parse(rows['readPrefs'])).not.toHaveProperty('volumePaging');
   await page.reload();
   await toShelf(page);
   await expect(page.locator('[data-action="book:1"] img')).toBeVisible();

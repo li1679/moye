@@ -13,12 +13,12 @@ import type { Book } from '../data/schema';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
 // 确认弹层（ui/forms.ts）与一键排版（编辑器模块）由组装入口注入。
-export type ChaptersHelpers = {
+type ChaptersHelpers = {
   confirmSheet(title: string, message: string, action: string): void;
   applyFormat(all?: boolean): Promise<void>;
 };
 
-// 打开指定下标的章节。chapter 和 jump-chapter 共用；目录跳章（2.6）也走这里。
+// 打开指定下标的章节，章节列表与目录跳章共用。
 export function openChapter(ctx: Ctx, arg?: string) {
   const state = ctx.state;
   state.chapter = Number(arg);

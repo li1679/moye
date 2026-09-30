@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
-import { $, $$, esc } from '../core/dom';
+import { $, $maybe, $$, esc } from '../core/dom';
 import { ib, toolMenu, tools } from '../kit/ui';
 import { onLongPress } from '../kit/long-press';
 import { attachFastScroll } from '../kit/fast-scroll';
@@ -19,14 +19,14 @@ import type { Chapter, Prefs, ToolId } from '../data/schema';
 import { presets } from '../ui/settings';
 import type { ActionHandler, Ctx, PageModule } from '../core/context';
 
-// 2.9 搬走的部分由组装入口注入：搜索面板。
-export type EditorHelpers = {
+// 搜索面板由组装入口注入。
+type EditorHelpers = {
   search(scope?: string, replace?: boolean, initial?: string): void;
   searchHit(): { chapterId: string; offset: number } | null;
   afterReplace(): void;
 };
 
-export type EditorModule = PageModule & {
+type EditorModule = PageModule & {
   editor: Ctx['editor'];
   resetHistory(id?: string | null): void;
   applyFormat(all?: boolean): Promise<void>;
@@ -36,18 +36,13 @@ type PendingChange = { chapter: Chapter; before: string; after: string };
 type PendingInput = { element: Element; target: Chapter; field: 'body' | 'name'; before: string; edit: InputEdit };
 type Composition = { target: Chapter; field: 'body' | 'name'; before: string };
 
-export function createEditorPage(ctx: Ctx, helpers: EditorHelpers): EditorModule {
-
-// 设置面板的键名来自模板字符串：数值/颜色/文本键写 string | number，开关键写 boolean。
-function setPanelValue(target: object, key: string, value: string | number | boolean): void {
-  Object.assign(target, { [key]: value });
-}
-
 // 网格线类型的四个按钮值；其他值视为无效动作忽略。
 const LINE_TYPES: readonly Prefs['lineType'][] = ['实线', '长虚线', '短虚线', '点线'];
 function isLineType(value: string): value is Prefs['lineType'] {
   return LINE_TYPES.includes(value as Prefs['lineType']);
 }
+
+export function createEditorPage(ctx: Ctx, helpers: EditorHelpers): EditorModule {
   const state = ctx.state;
   const history = new ChapterHistory();
   let historyChapterId: string | null = null;
@@ -170,17 +165,13 @@ function isLineType(value: string): value is Prefs['lineType'] {
   }
 
   function updateFindCount() {
-    const count = $maybeFind<HTMLElement>('.find-count');
+    const count = $maybe<HTMLElement>('.find-count', ctx.app);
     if (count) count.textContent = findOffsets.length ? `${findIndex + 1}/${findOffsets.length}` : '0/0';
-  }
-
-  function $maybeFind<T extends Element>(query: string) {
-    return ctx.app.querySelector<T>(query);
   }
 
   function calculateFind(reset = false) {
     clearTimeout(findTimer);
-    const input = $maybeFind<HTMLInputElement>('.find-bar input');
+    const input = $maybe<HTMLInputElement>('.find-bar input', ctx.app);
     if (!input) return;
     const query = input.value;
     lastFindQuery = query;
@@ -214,13 +205,13 @@ function isLineType(value: string): value is Prefs['lineType'] {
     if (!findOffsets.length) return;
     findIndex = (findIndex + direction + findOffsets.length) % findOffsets.length;
     updateFindCount();
-    const query = $maybeFind<HTMLInputElement>('.find-bar input')?.value ?? '';
+    const query = $maybe<HTMLInputElement>('.find-bar input', ctx.app)?.value ?? '';
     locateText(findOffsets[findIndex], query.length, { focus: false });
   }
 
   function closeFindBar() {
     clearTimeout(findTimer);
-    $maybeFind('.find-bar')?.remove();
+    $maybe('.find-bar', ctx.app)?.remove();
     clearFindHighlight();
     findOffsets = [];
     findIndex = -1;
@@ -228,12 +219,12 @@ function isLineType(value: string): value is Prefs['lineType'] {
 
   function openFindBar() {
     ctx.closeSheet();
-    const existing = $maybeFind<HTMLInputElement>('.find-bar input');
+    const existing = $maybe<HTMLInputElement>('.find-bar input', ctx.app);
     if (existing) { existing.focus(); return; }
     const body = $('.manuscript');
     findStartOffset = captureSelection(body, 'body')?.end ?? findStartOffset;
     $('.editor > .topbar').insertAdjacentHTML('afterend', `<div class="find-bar" role="search"><input aria-label="查找本章" placeholder="查找本章" enterkeyhint="search" value="${esc(lastFindQuery)}"><span class="find-count">0/0</span>${ib('chevron-up', '上一处', 'find-prev')}${ib('chevron-down', '下一处', 'find-next')}${ib('replace', '替换', 'find-replace')}${ib('x', '关闭查找', 'find-close')}</div>`);
-    const input = $maybeFind<HTMLInputElement>('.find-bar input')!;
+    const input = $maybe<HTMLInputElement>('.find-bar input', ctx.app)!;
     input.focus();
     if (lastFindQuery) calculateFind(true);
   }
@@ -292,11 +283,10 @@ function isLineType(value: string): value is Prefs['lineType'] {
     ctx.dispose();
     const c = ctx.chapter();
     if (!c) {
-      state.page = "chapters";
-      ctx.render();
+      void ctx.action('chapters').catch(error => ctx.toast(String(error)));
       return;
     }
-    resetHistory(c.id ??= crypto.randomUUID());
+    resetHistory(c.id);
     ctx.app.innerHTML = `<main class="app-shell editor "><header class="topbar">${ib("chevron-left", "返回目录", "chapters")}<div class="editor-tools">${toolbar("top")}</div>${ib("ellipsis-vertical", "更多工具", "editor-menu")}</header><section class="editor-scroll" ><span class="word-count"><span class="save-dot" data-state="saved" aria-hidden="true"></span>本章字数 <span id="word-value">${wordsOf(c)}</span></span><h1 class="editor-heading" contenteditable="true" role="textbox" aria-label="章节标题">${esc(c.name)}</h1><div class="manuscript" contenteditable="true" role="textbox" aria-label="章节正文" aria-multiline="true" data-placeholder="请输入正文">${esc(c.body)}</div></section><footer class="editor-bottom">${toolbar("bottom")}</footer></main>`;
     const saveDot = $<HTMLElement>('.save-dot');
     const updateSaveDot = (event: Event) => {
@@ -312,7 +302,6 @@ function isLineType(value: string): value is Prefs['lineType'] {
     const scroll = $(".editor-scroll");
     $(".editor-heading").setAttribute('contenteditable', 'plaintext-only');
     ctx.onDispose(attachFastScroll(scroll));
-    c.id ??= crypto.randomUUID();
     const body = $(".manuscript"), title = $(".editor-heading");
     const previous = state.editing[c.id];
     scroll.scrollTop = previous?.scroll || 0;
@@ -321,7 +310,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
     if (position) restoreSelection(position.field === 'name' ? title : body, position);
     const capture = () => {
       const selected = captureSelection(body, 'body') || captureSelection(title, 'name');
-      if (selected) position = { start: selected.start, end: selected.end, backward: selected.backward, field: selected.field === 'name' ? 'name' : 'body' };
+      if (selected) position = selected;
       state.editing[c.id] = {
         scroll: scroll.scrollTop, selection: position,
         anchor: body.firstChild?.nodeType === Node.TEXT_NODE && body.childNodes.length === 1 ? captureAnchor(body, scroll) : undefined,
@@ -450,14 +439,12 @@ function isLineType(value: string): value is Prefs['lineType'] {
         target[field] = value;
         if (field === 'body') {
           scheduleWordCount(value);
-          if ($maybeFind('.find-bar')) scheduleFind(false);
+          if ($maybe('.find-bar', ctx.app)) scheduleFind(false);
         }
         updateHistoryTools();
       }
       if (el instanceof HTMLInputElement && el.dataset.color) {
-        const key = el.dataset.color;
-        if (key.startsWith("read")) setPanelValue(state.readPrefs, key.slice(4), el.value);
-        else setPanelValue(state.prefs, key, el.value);
+        ctx.settings.setPreference(el.dataset.color, el.value);
         applyAppearance(ctx);
         ctx.settings.syncPreferenceControls();
       }
@@ -466,7 +453,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
       if (!(e.target instanceof Element)) return;
       const el = e.target;
       if (el instanceof HTMLInputElement && el.dataset.pref) {
-        setPanelValue(state.prefs, el.dataset.pref, el.checked);
+        ctx.settings.setPreference(el.dataset.pref, el.checked);
         applyAppearance(ctx);
       }
       if (el instanceof HTMLSelectElement && el.id === 'font-family') {
@@ -474,6 +461,14 @@ function isLineType(value: string): value is Prefs['lineType'] {
         applyAppearance(ctx);
       }
     });
+  }
+
+  function applyThemePreset(arg?: string) {
+    const preset = presets[Number(arg)];
+    if (!preset) return;
+    Object.assign(state.prefs, { paper: preset.paper, color: preset.color });
+    applyAppearance(ctx);
+    ctx.settings.syncPreferenceControls();
   }
 
   const actions: Record<string, ActionHandler> = {
@@ -497,28 +492,15 @@ function isLineType(value: string): value is Prefs['lineType'] {
       if (arg === undefined || arg2 === undefined) return;
       const value: string | number = /^\d+(\.\d+)?$/.test(arg2) ? Number(arg2) : arg2;
       const readingPosition = state.page === 'reader' && arg === 'readtidy' ? ctx.reader.session()?.capture() : null;
-      if (arg.startsWith("read")) setPanelValue(state.readPrefs, arg.slice(4), value);
-      else setPanelValue(state.prefs, arg, value);
+      ctx.settings.setPreference(arg, value);
       if (readingPosition) {
         ctx.render();
         ctx.reader.session()?.restore(readingPosition);
       } else applyAppearance(ctx);
       ctx.settings.syncPreferenceControls();
     },
-    'theme-preset'(arg) {
-      const preset = presets[Number(arg)];
-      if (!preset) return;
-      Object.assign(state.prefs, { paper: preset.paper, color: preset.color });
-      applyAppearance(ctx);
-      ctx.settings.syncPreferenceControls();
-    },
-    'read-preset'(arg) {
-      const preset = presets[Number(arg)];
-      if (!preset) return;
-      Object.assign(state.readPrefs, { paper: preset.paper, color: preset.color, night: preset.name === '夜读' });
-      applyAppearance(ctx);
-      ctx.settings.syncPreferenceControls();
-    },
+    'theme-preset': applyThemePreset,
+    'read-preset': applyThemePreset,
     'editor-menu'() {
       findStartOffset = captureSelection($('.manuscript'), 'body')?.end ?? findStartOffset;
       ctx.openSheet(
@@ -540,7 +522,7 @@ function isLineType(value: string): value is Prefs['lineType'] {
     'find-next'() { stepFind(1); },
     'find-close'() { closeFindBar(); },
     'find-replace'() {
-      const query = $maybeFind<HTMLInputElement>('.find-bar input')?.value ?? lastFindQuery;
+      const query = $maybe<HTMLInputElement>('.find-bar input', ctx.app)?.value ?? lastFindQuery;
       closeFindBar();
       helpers.search('chapter', true, query);
     },

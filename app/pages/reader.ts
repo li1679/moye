@@ -4,23 +4,18 @@ import { mountReader } from '../features/reader/continuous';
 import { applyAppearance } from '../features/appearance';
 import { displayBody } from '../features/reader/display';
 import { MoyeNative, isNative, syncReader } from '../features/native/native';
+import { isDarkPaper } from '../kit/contrast';
 import { needBook } from '../core/library';
 import type { ActionHandler, Ctx, PageModule, ReaderSession } from '../core/context';
 
-// 阅读器页（2.7 从 prototype.js / editor.ts 拆出）：连续阅读挂载、控制栏、夜间、阅读设置、上一章/下一章、阅读区点击。
-export type ReaderModule = PageModule & { reader: Ctx['reader'] };
-
-// 设置面板的键名来自模板字符串：与 editor.ts 相同，经 Object.assign 写入动态键。
-function setPanelValue(target: object, key: string, value: string | number | boolean): void {
-  Object.assign(target, { [key]: value });
-}
+// 连续阅读、控制栏、夜间主题、阅读设置和阅读区点按。
+type ReaderModule = PageModule & { reader: Ctx['reader'] };
 
 export function createReaderPage(ctx: Ctx): ReaderModule {
   const state = ctx.state;
   let readerSession: ReaderSession | null = null;
   // 阅读区按下的位置与时间，用来区分"点按呼出控制栏"和拖动、滚动、长按。
   let readingPointer: { x: number; y: number; time: number; scroll: number } | null = null;
-  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let clockTimer: ReturnType<typeof setInterval> | undefined;
   let batteryTimer: ReturnType<typeof setInterval> | undefined;
   const timeFormat = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
@@ -61,7 +56,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
   }
 
   function nightLabel(): string {
-    return (state.readPrefs.night ?? ['#202123', '#1b1a18'].includes(state.readPrefs.paper))
+    return isDarkPaper(state.prefs.paper)
       ? `${icon("sun")}日间`
       : `${icon("moon")}夜间`;
   }
@@ -72,11 +67,11 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
     const lineHeight = parseFloat(getComputedStyle(body).lineHeight);
     scroll.scrollBy({
       top: direction * Math.max(0, scroll.clientHeight - 2 * lineHeight),
-      behavior: reduceMotion.matches ? 'auto' : 'smooth',
+      behavior: 'auto',
     });
   }
 
-  // 阅读页渲染（原 renderEditor 的阅读分支）。
+  // 挂载连续阅读与控制栏。
   function renderReader() {
     ctx.dispose();
     const c = ctx.chapter();
@@ -85,10 +80,9 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       return;
     }
     const b = needBook(state);
-    ctx.app.innerHTML = `<main class="app-shell editor ${"reader " + (state.readerControls ? "controls" : "")}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span class="reader-footer-meta"><span class="reader-status" hidden><span id="reader-time"></span><span id="reader-battery" hidden></span></span><span><span id="chapter-position">${state.chapter + 1}/${b.chapters.length}</span> · <span id="progress-value">0%</span></span></span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
+    ctx.app.innerHTML = `<main class="app-shell editor reader ${state.readerControls ? "controls" : ""}"><header class="topbar reader-top">${ib("chevron-left", "返回阅读书架", "home")}<div class="title"><small>${esc(b.name)}</small></div>${ib("search", "本书搜索", "book-search")}</header><section class="editor-scroll" data-reader="true"></section><div class="reader-progress"><button class="chapter-step" data-action="reader-step:-1" ${state.chapter === 0 ? "disabled" : ""}>${icon("chevron-left")}<span>上一章</span></button><input aria-label="本章阅读进度" type="range" min="0" max="100" value="0"><button class="chapter-step" data-action="reader-step:1" ${state.chapter === b.chapters.length - 1 ? "disabled" : ""}><span>下一章</span>${icon("chevron-right")}</button></div><div class="reader-footer"><span>${esc(c.name)}</span><span class="reader-footer-meta"><span class="reader-status" hidden><span id="reader-time"></span><span id="reader-battery" hidden></span></span><span><span id="chapter-position">${state.chapter + 1}/${b.chapters.length}</span> · <span id="progress-value">0%</span></span></span></div><footer class="editor-bottom reader-bottom"><button data-action="directory">${icon("list-ordered")}目录</button><button data-action="night">${nightLabel()}</button><button data-action="reader-settings">${icon("settings-2")}设置</button><button data-action="chapter-search">${icon("search")}搜索</button></footer></main>`;
     applyAppearance(ctx);
     const scroll = $(".editor-scroll");
-    b.chapters.forEach(ch => ch.id ??= crypto.randomUUID());
     readerSession = mountReader(scroll, b.chapters, state.chapter, state.reading[b.id], (position, progress) => {
       state.chapter = position.chapter;
       state.reading[b.id] = { ...position, percent: progress, at: Date.now() };
@@ -143,7 +137,7 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
       if (!(event.target instanceof HTMLInputElement)) return;
       const el = event.target;
       if (el.dataset.readerPref) {
-        setPanelValue(state.readPrefs, el.dataset.readerPref, Number(el.value));
+        ctx.settings.setPreference('read' + el.dataset.readerPref, Number(el.value));
         $('.reader').style.filter = !isNative && !state.readPrefs.brightnessAuto ? `brightness(${el.value}%)` : '';
         syncReader(state.readPrefs);
       }
@@ -151,30 +145,28 @@ export function createReaderPage(ctx: Ctx): ReaderModule {
     });
     document.addEventListener('change', (event) => {
       if (!(event.target instanceof HTMLInputElement) || !event.target.dataset.readSwitch) return;
-      setPanelValue(state.readPrefs, event.target.dataset.readSwitch, event.target.checked);
+      ctx.settings.setPreference('read' + event.target.dataset.readSwitch, event.target.checked);
       const brightness = document.querySelector<HTMLInputElement>('[data-reader-pref="brightness"]');
       if (brightness) brightness.disabled = state.readPrefs.brightnessAuto;
       applyAppearance(ctx);
       syncReader(state.readPrefs);
       syncImmersiveFooter();
     });
-    if (isNative) {
-      const volume = MoyeNative.addListener('volumeKey', ({ direction }) => pageScreen(direction === 'up' ? -1 : 1));
-      ctx.onDispose(() => { void volume.then(handle => handle.remove()); });
-    }
   }
 
   const actions: Record<string, ActionHandler> = {
     night() {
       const p = state.readPrefs;
-      const dark = p.night ?? ['#202123', '#1b1a18'].includes(p.paper);
+      const theme = state.prefs;
+      const dark = isDarkPaper(theme.paper);
       const themes = p.themes || { day: { paper: '#f6f1e7', color: '#1f1d1a' }, night: { paper: '#1b1a18', color: '#d9d3c7' } };
-      themes[dark ? 'night' : 'day'] = { paper: p.paper, color: p.color };
+      themes[dark ? 'night' : 'day'] = { paper: theme.paper, color: theme.color };
       p.themes = themes;
       p.night = !dark;
-      Object.assign(p, themes[dark ? 'day' : 'night']);
+      const next = themes[dark ? 'day' : 'night'];
+      Object.assign(theme, next);
+      Object.assign(p, next);
       applyAppearance(ctx);
-      $('[data-action="night"]').innerHTML = nightLabel();
     },
     'reader-settings'() {
       ctx.settings.readerSettings();

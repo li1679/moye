@@ -1,18 +1,24 @@
 /* 纸墨风设计变量。颜色、字号、圆角、间距只能从这里取。 */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
 
-  --c-paper: #f6f1e7;       /* 应用底色：暖白纸 */
-  --c-surface: #fbf8f2;     /* 栏、卡片、弹层 */
-  --c-ink: #1f1d1a;         /* 主要文字：墨 */
-  --c-ink-2: #5f5a52;       /* 次要文字（在纸色上的对比度约 6:1） */
-  --c-ink-3: #8a8378;       /* 占位、禁用、装饰线；不要用在需要读的信息上 */
-  --c-line: #e3dccf;        /* 分隔线 */
-  --c-edge: #cfc6b6;        /* 控件描边 */
-  --c-press: rgb(31 29 26 / 0.06);
+  --theme-paper: #f6f1e7;
+  --theme-ink: #1f1d1a;
+  --c-paper: var(--theme-paper);
+  --c-surface: color-mix(in srgb, var(--theme-paper) 92%, var(--theme-ink));
+  --c-ink: var(--theme-ink);
+  --c-ink-2: color-mix(in srgb, var(--theme-ink) 65%, var(--theme-paper));
+  --c-ink-3: color-mix(in srgb, var(--theme-ink) 42%, var(--theme-paper));
+  --c-line: color-mix(in srgb, var(--theme-ink) 14%, var(--theme-paper));
+  --c-edge: color-mix(in srgb, var(--theme-ink) 28%, var(--theme-paper));
+  --c-press: color-mix(in srgb, var(--theme-ink) 7%, transparent);
   --c-seal: #b33a2e;        /* 朱砂：只做点缀（当前位置标记、印章、进度） */
   --c-danger: #9f2f25;      /* 危险操作（实心按钮） */
-  --c-on-strong: #fbf8f2;   /* 墨色底上的文字 */
+  --c-on-strong: var(--theme-paper);
   --c-on-danger: #ffffff;
   --c-mark: #f3e0b8;        /* 搜索命中的底色 */
   --c-backdrop: rgb(20 18 15 / 0.38);
@@ -37,22 +43,4 @@
   --cover-5: #6b5444; --cover-5-ink: #f6efe4;   /* 茶褐 */
   --cover-6: #efe7d6; --cover-6-ink: #2b2621;   /* 米白 */
   --cover-7: #5b7f86; --cover-7-ink: #f5f1ea;   /* 石青 */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --c-paper: #1b1a18;
-    --c-surface: #232220;
-    --c-ink: #e9e4da;
-    --c-ink-2: #b3ab9f;
-    --c-ink-3: #7d766c;
-    --c-line: #34322e;
-    --c-edge: #45423c;
-    --c-press: rgb(233 228 218 / 0.08);
-    --c-seal: #d0584a;
-    --c-danger: #c9483c;
-    --c-on-strong: #1b1a18;
-    --c-mark: #5a4a2a;
-    --c-backdrop: rgb(0 0 0 / 0.5);
-  }
 }

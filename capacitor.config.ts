@@ -4,9 +4,8 @@ const config: CapacitorConfig = {
   appId: 'com.localediting.app',
   appName: '墨页',
   webDir: 'dist',
-  // Paired with viewport-fit=contain: SystemBars pads the native viewport on
-  // every WebView version, including fixed headers and modal dialogs.
-  plugins: { SystemBars: { insetsHandling: 'native' } },
+  // MoyeNative 统一处理透明系统栏和安全区，避免旧 WebView 的原生留白。
+  plugins: { SystemBars: { insetsHandling: 'disable', style: 'LIGHT' } },
   server: {
     androidScheme: 'https'
   }

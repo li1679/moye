@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { decodeBackup, encodeBackup } from '../app/features/backup/model';
-import { localDate } from '../app/features/backup/flows';
+import { localDate } from '../app/kit/date';
 
 test('backup localDate uses local calendar fields', () => {
   const date = new Date(0);

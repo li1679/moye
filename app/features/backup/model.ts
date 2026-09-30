@@ -5,7 +5,7 @@ export { clone, validateLibrary, snapshotLibrary, type Library } from '../../dat
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function requireValue(condition: unknown, message: string): asserts condition { if (!condition) throw new Error('备份无效：' + message); }
 const BACKUP_LIMIT = 256 * 1024 * 1024;
-export function utf8ByteLength(text: string): number {
+function utf8ByteLength(text: string): number {
   let bytes = 0;
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);

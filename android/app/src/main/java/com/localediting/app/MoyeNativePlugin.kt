@@ -3,13 +3,19 @@ package com.localediting.app
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
+import android.graphics.Color
 import android.net.Uri
 import android.os.BatteryManager
+import android.os.Build
 import android.provider.OpenableColumns
 import android.util.Base64
 import android.view.WindowManager
+import android.webkit.WebView
 import androidx.activity.result.ActivityResult
 import androidx.core.content.IntentCompat
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -17,28 +23,88 @@ import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.WebViewListener
 import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.Locale
 
 @CapacitorPlugin(name = "MoyeNative")
 class MoyeNativePlugin : Plugin() {
     companion object {
         private const val SHARE_LIMIT = 32 * 1024 * 1024
-        @JvmField @Volatile var volumePaging = false
-        @Volatile private var instance: MoyeNativePlugin? = null
-        @JvmStatic fun emitVolume(direction: String) { instance?.sendVolume(direction) }
     }
 
-    fun sendVolume(direction: String) {
-        notifyListeners("volumeKey", JSObject().put("direction", direction))
+    private var themeColor = Color.parseColor("#f6f1e7")
+    private var darkTheme = false
+
+    private fun applyNativeTheme() {
+        activity.window.decorView.setBackgroundColor(themeColor)
+        bridge.webView.setBackgroundColor(themeColor)
+        val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        controller.isAppearanceLightStatusBars = !darkTheme
+        controller.isAppearanceLightNavigationBars = !darkTheme
+    }
+
+    override fun handleOnConfigurationChanged(newConfig: Configuration) {
+        super.handleOnConfigurationChanged(newConfig)
+        activity.window.decorView.post { applyNativeTheme() }
+    }
+
+    override fun handleOnResume() {
+        super.handleOnResume()
+        activity.window.decorView.post { applyNativeTheme() }
     }
 
     override fun load() {
-        instance = this
+        activity.runOnUiThread { installEdgeToEdge() }
         handleShareIntent(activity.intent)
+    }
+
+    // 背景延伸到透明系统栏；安全区注入 CSS，不依赖手机 WebView 的 env() 实现。
+    @Suppress("DEPRECATION")
+    private fun installEdgeToEdge() {
+        val window = activity.window
+        val decor = window.decorView
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val attributes = window.attributes
+            attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            window.attributes = attributes
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(decor) { view, insets ->
+            val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val keyboard = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            // 键盘仍由原生收缩视口，系统栏不再产生异色留白。
+            view.setPadding(0, 0, 0, if (keyboard) ime.bottom else 0)
+            val density = context.resources.displayMetrics.density
+            val script = String.format(Locale.US,
+                "document.documentElement.style.setProperty('--safe-area-inset-top', '%fpx');" +
+                "document.documentElement.style.setProperty('--safe-area-inset-right', '%fpx');" +
+                "document.documentElement.style.setProperty('--safe-area-inset-bottom', '%fpx');" +
+                "document.documentElement.style.setProperty('--safe-area-inset-left', '%fpx');",
+                safe.top / density, safe.right / density, (if (keyboard) 0 else safe.bottom) / density, safe.left / density)
+            bridge.webView.evaluateJavascript(script, null)
+            WindowInsetsCompat.Builder(insets)
+                .setInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(), Insets.NONE)
+                .build()
+        }
+        bridge.addWebViewListener(object : WebViewListener() {
+            override fun onPageCommitVisible(view: WebView, url: String) {
+                ViewCompat.requestApplyInsets(decor)
+            }
+        })
+        ViewCompat.requestApplyInsets(decor)
+        decor.post { applyNativeTheme() }
     }
 
     override fun handleOnNewIntent(intent: Intent) {
@@ -159,9 +225,20 @@ class MoyeNativePlugin : Plugin() {
     }
 
     @PluginMethod
-    fun setVolumePaging(call: PluginCall) {
-        volumePaging = call.getBoolean("on", false) ?: false
-        call.resolve()
+    fun setTheme(call: PluginCall) {
+        val paper = call.getString("paper")
+        if (paper == null || !Regex("^#[0-9a-fA-F]{6}$").matches(paper)) {
+            call.reject("主题颜色无效")
+            return
+        }
+        val color = Color.parseColor(paper)
+        val dark = call.getBoolean("dark", false) ?: false
+        activity.runOnUiThread {
+            themeColor = color
+            darkTheme = dark
+            applyNativeTheme()
+            call.resolve()
+        }
     }
 
     private fun handleShareIntent(intent: Intent?) {

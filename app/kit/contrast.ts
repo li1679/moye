@@ -19,3 +19,7 @@ export function contrastRatio(a: string, b: string): number {
   const second = luminance(b);
   return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
 }
+
+export function isDarkPaper(paper: string): boolean {
+  return contrastRatio(paper, '#ffffff') > contrastRatio(paper, '#000000');
+}

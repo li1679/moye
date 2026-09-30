@@ -16,7 +16,7 @@ export interface Ctx {
   app: HTMLElement;
   sheet: HTMLDialogElement;
   render(): void;
-  dispose(): void;                  // 离开编辑或阅读之前调用（原来的 disposeReadingEditing）
+  dispose(): void;                  // 离开编辑或阅读之前调用
   onDispose(fn: () => void): void;  // 各模块登记自己的清理函数
   action(name: string): Promise<void>;
   openSheet(title: string, body: string, options?: SheetOptions): void;
@@ -34,22 +34,7 @@ export interface Ctx {
   settings: ReturnType<typeof createSettings>;
 }
 
-type CtxDeps = {
-  state: AppState;
-  app: HTMLElement;
-  sheet: HTMLDialogElement;
-  openSheet: Ctx['openSheet'];
-  closeSheet: Ctx['closeSheet'];
-  backSheet: Ctx['backSheet'];
-  toast: Ctx['toast'];
-  book: Ctx['book'];
-  chapter: Ctx['chapter'];
-  editor: Ctx['editor'];
-  reader: Ctx['reader'];
-  txt: Ctx['txt'];
-  backup: Ctx['backup'];
-  settings: Ctx['settings'];
-};
+type CtxDeps = Omit<Ctx, 'render' | 'action' | 'dispose' | 'onDispose'>;
 
 // 组装入口先把现成的能力交给 ctx；render 和 action 分别由 router 和动作表装配上去。
 export function createCtx(deps: CtxDeps): Ctx {
@@ -58,7 +43,10 @@ export function createCtx(deps: CtxDeps): Ctx {
     ...deps,
     render: () => {},
     action: async () => {},
-    dispose() { const fns = disposeFns.splice(0); for (const fn of fns) fn(); },
+    dispose() {
+      const fns = disposeFns.splice(0);
+      for (const fn of fns) fn();
+    },
     onDispose(fn) { disposeFns.push(fn); },
   };
 }

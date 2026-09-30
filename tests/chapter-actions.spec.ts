@@ -177,6 +177,24 @@ test('library management blocks folders and toggles select all', async ({ page }
   await expect(page.locator('[data-action="select-all"]')).toContainText('全选');
 });
 
+test('library management shows the selected book checkbox in grid and list views', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('[data-action="home-menu"]').click();
+  await page.locator('[data-action="batch"]').click();
+  const book = page.locator('[data-book-id="1"]');
+  await expect(book.locator('.book-selection')).toHaveCount(1);
+  await expect(book.locator('.book-selection .lucide-square')).toHaveCount(1);
+  await book.click();
+  await expect(book).toHaveAttribute('aria-pressed', 'true');
+  await expect(book.locator('.book-selection .lucide-square-check')).toHaveCount(1);
+  await page.locator('.library-managing > .topbar [data-action="batch"]').click();
+  await page.locator('[data-action="home-menu"]').click();
+  await page.locator('[data-action="view:list"]').click();
+  await page.locator('[data-action="home-menu"]').click();
+  await page.locator('[data-action="batch"]').click();
+  await expect(page.locator('[data-book-id="1"] .book-selection')).toBeVisible();
+});
+
 test('long press enters writing library and chapter management with the target selected', async ({ page }) => {
   await page.goto('/');
   const book = page.locator('[data-book-id="1"]');

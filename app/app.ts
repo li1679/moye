@@ -1,33 +1,31 @@
-import { createSheets, type SheetOptions } from './ui/sheets';
+import { $, esc } from './core/dom';
+import { registerActions, createDispatcher } from './core/actions';
+import { createCtx, type ActionHandler } from './core/context';
+import { book as bookOf, chapter as chapterOf } from './core/library';
+import { createRouter } from './core/router';
+import { createInitialState, type AppState } from './core/state';
+import { toast, runNoticeAction } from './core/toast';
 import { persistState } from './data/autosave';
-import { createTxtFlows } from './features/txt/flows';
 import { createBackupFlows } from './features/backup/flows';
 import { compressCover } from './features/covers';
-import { createSettings } from './ui/settings';
-import { createInitialState, type AppState } from './core/state';
-import { icon, ib } from './kit/ui';
-import { $, esc } from './core/dom';
-import { toast, runNoticeAction } from './core/toast';
-import { createCtx, type ActionHandler } from './core/context';
-import { registerActions, createDispatcher } from './core/actions';
-import { createRouter } from './core/router';
-import { createShelfPage } from './pages/shelf';
-import { createMePage } from './pages/me';
-import { createChaptersPage } from './pages/chapters';
-import { book as bookOf, chapter as chapterOf } from './core/library';
-import { createEditorPage } from './pages/editor';
-import { createReaderPage } from './pages/reader';
-import { createLayoutPage } from './pages/layout';
 import { createDirectory } from './features/directory';
-import { createSearchUi } from './features/search/search-ui';
-import { createForms } from './ui/forms';
 import { installNativeHandlers } from './features/native/android';
 import { isNative } from './features/native/native';
 import { installNativeShareListener, registerShareHandler } from './features/native/share';
-// 组装入口（2.11 从 prototype.js 迁来）：创建 state 与 ctx，装配各页面模块并合并动作表，
-// 安装全局监听，最后做首次渲染。
+import { createSearchUi } from './features/search/search-ui';
+import { createTxtFlows } from './features/txt/flows';
+import { icon, ib } from './kit/ui';
+import { createShelfPage } from './pages/shelf';
+import { createMePage } from './pages/me';
+import { createChaptersPage } from './pages/chapters';
+import { createEditorPage } from './pages/editor';
+import { createReaderPage } from './pages/reader';
+import { createLayoutPage } from './pages/layout';
+import { createForms } from './ui/forms';
+import { createSettings } from './ui/settings';
+import { createSheets, type SheetOptions } from './ui/sheets';
 
-/* UI state hydrated from the platform's local database before first render. */
+// 组装入口：恢复状态、装配页面和动作、安装全局监听，最后首次渲染。
 const state: AppState = await persistState(createInitialState());
 const settingsModule = createSettings({ state, openSheet, icon });
 const { syncPreferenceControls } = settingsModule;
@@ -163,7 +161,7 @@ document.addEventListener('moye:share-error', event => {
   toast((event as CustomEvent<string>).detail);
 });
 if (isNative) installNativeShareListener();
-// 首屏之后：已有的大封面在空闲时逐本自动压缩（D-13），结果更短才替换。
+// 首屏之后：已有的大封面在空闲时逐本自动压缩，结果更短才替换。
 const compressIdleCovers = () => {
   const queue = state.books.filter((b) => (b.image?.length ?? 0) > 300_000).slice();
   const step = () => {

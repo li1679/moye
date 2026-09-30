@@ -1,8 +1,7 @@
 import { editorText } from './dom-text';
-export type Anchor = { offset: number; context: string; y: number };
-export type SelectionPosition = { start: number; end: number; backward: boolean; field: string };
+import type { Anchor, SelectionPosition } from '../../data/schema';
 
-export function offsetRange(element: HTMLElement, start: number, end = start): Range {
+function offsetRange(element: HTMLElement, start: number, end = start): Range {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) nodes.push(walker.currentNode as Text);
@@ -46,7 +45,7 @@ export function restoreAnchor(element: HTMLElement, scroll: HTMLElement, anchor:
   return exact;
 }
 
-export function captureSelection(element: HTMLElement, field: string): SelectionPosition | null {
+export function captureSelection(element: HTMLElement, field: SelectionPosition['field']): SelectionPosition | null {
   const selection = getSelection();
   if (!selection?.rangeCount || !element.contains(selection.anchorNode) || !element.contains(selection.focusNode)) return null;
   const range = selection.getRangeAt(0);
