@@ -1,4 +1,5 @@
 import { test, expect } from './seed';
+import { selectTxt } from './txt-helper';
 
 const longBody = Array.from({ length: 240 }, (_, index) => `第${index}行，连续阅读性能回归正文。`).join('\n');
 
@@ -78,12 +79,12 @@ test('font changes retain the active chapter and complete text', async ({ page }
 test('reader window stays bounded and centers a distant directory jump', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
   const text = Array.from({ length: 12 }, (_, index) => `第${index + 1}章\n${longBody}\n`).join('');
-  await page.locator('#txt-file').setInputFiles({ name: '窗口阅读.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await selectTxt(page, '窗口阅读.txt', text);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
-  await page.locator('#txt-destination').selectOption('reader');
   await page.locator('#txt-confirm').click();
+  await page.locator('[data-action="tab:read"]').click();
+  await page.locator('.book').filter({ hasText: '窗口阅读' }).click();
   await page.locator('.editor-scroll').click({ position: { x: 200, y: 300 } });
   await page.locator('[data-action="directory"]').click();
   await page.locator('[data-action="jump-chapter:6"]').click();
@@ -107,12 +108,12 @@ test('directory jump keeps the mounted reader scroll node', async ({ page }) => 
 test('sixty short chapters keep loading until the final chapter', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
   const text = Array.from({ length: 60 }, (_, index) => `第${index + 1}章\n正文 ${index + 1}。\n`).join('');
-  await page.locator('#txt-file').setInputFiles({ name: '短章连续阅读.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await selectTxt(page, '短章连续阅读.txt', text);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
-  await page.locator('#txt-destination').selectOption('reader');
   await page.locator('#txt-confirm').click();
+  await page.locator('[data-action="tab:read"]').click();
+  await page.locator('.book').filter({ hasText: '短章连续阅读' }).click();
   const scroll = page.locator('.editor-scroll');
   for (let attempt = 0; attempt < 80 && await page.locator('.reading-chapter[data-index="59"]').count() === 0; attempt++) {
     await scroll.evaluate(element => { element.scrollTop = element.scrollHeight; });

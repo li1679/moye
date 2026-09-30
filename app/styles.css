@@ -201,7 +201,7 @@ body:has(.reader) .save-status[data-failed="true"] { display: block; }
 .managing.list .drag-handle { top: 50%; translate: 0 -50%; background: none; }
 .managing.list .folder-open { padding-right: 44px; }
 .managing.list .folder-item > .icon { right: 40px; }
-.txt-preview, .text-preview { max-height: 180px; padding: var(--sp-3); overflow-y: auto; background: var(--c-line); font: inherit; font-size: var(--fs-m); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.text-preview { max-height: 180px; padding: var(--sp-3); overflow-y: auto; background: var(--c-line); font: inherit; font-size: var(--fs-m); line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
 .search-actions { display: flex; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-3) 0; }
 .result[aria-pressed="true"] { outline: 1px solid var(--c-ink); outline-offset: -1px; }
 ::highlight(search-match) { background: var(--c-mark); color: var(--c-ink); }

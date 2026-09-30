@@ -1,14 +1,15 @@
 import { test, expect } from './seed';
 import { toShelf } from './seed';
+import { selectTxt } from './txt-helper';
 
 test('dragging a scrolled chapter list retains viewport and persists order', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
   const text = Array.from({ length: 35 }, (_, i) => `第${i + 1}章\n正文。\n`).join('');
-  await page.locator('#txt-file').setInputFiles({ name: '拖动测试.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await selectTxt(page, '拖动测试.txt', text);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
   await page.locator('#txt-confirm').click();
+  await page.locator('.book').filter({ hasText: '拖动测试' }).click();
   await page.locator('[data-action="manage-chapters"]').click();
   const list = page.locator('.chapter-list');
   await list.evaluate(el => { el.scrollTop = 740; });
@@ -35,11 +36,11 @@ test('dragging a scrolled chapter list retains viewport and persists order', asy
 test('directory centers the current chapter and jumps by chapter number', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
   const text = Array.from({ length: 60 }, (_, i) => `第${i + 1}章\n正文 ${i + 1}。\n`).join('');
-  await page.locator('#txt-file').setInputFiles({ name: '目录跳章.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await selectTxt(page, '目录跳章.txt', text);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
   await page.locator('#txt-confirm').click();
+  await page.locator('.book').filter({ hasText: '目录跳章' }).click();
   await page.locator('[data-action="chapter:49"]').click();
   await page.locator('[data-action="tool:directory"]').click();
   await expect(page.locator('#directory-jump')).toBeVisible();
@@ -66,11 +67,11 @@ test('directory centers the current chapter and jumps by chapter number', async 
 test('returning from editing restores chapter list position and highlights the chapter', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
   const text = Array.from({ length: 60 }, (_, i) => `第${i + 1}章\n正文 ${i + 1}。\n`).join('');
-  await page.locator('#txt-file').setInputFiles({ name: '章节位置.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await selectTxt(page, '章节位置.txt', text);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
   await page.locator('#txt-confirm').click();
+  await page.locator('.book').filter({ hasText: '章节位置' }).click();
   const chapter = page.locator('[data-action="chapter:39"]');
   await chapter.scrollIntoViewIfNeeded();
   const before = await page.evaluate(() => scrollY);

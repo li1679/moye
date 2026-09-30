@@ -9,6 +9,7 @@ export type ToolId = (typeof TOOL_IDS)[number];
 
 export type Anchor = { offset: number; context: string; y: number };
 export type SelectionPosition = { start: number; end: number; backward: boolean; field: 'body' | 'name' };
+// TXT 导出读取：raw 保留原始标题/换行及文件头；文件头不进入阅读、编辑正文。
 export type SourceHeading = { name: string; raw: string };
 export type Chapter = { id: string; name: string; body: string; sourceHeading?: SourceHeading | null };
 

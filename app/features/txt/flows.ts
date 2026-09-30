@@ -29,36 +29,42 @@ export function createTxtFlows(context: Context) {
   }, true);
 
   function openImport(options: { appendTo?: Book; file?: File } = {}) {
+    if (busy) return;
+    if (!options.file) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.txt,text/plain';
+      input.hidden = true;
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        input.remove();
+        if (file) openImport({ ...options, file });
+      }, { once: true });
+      input.addEventListener('cancel', () => input.remove(), { once: true });
+      // 保持在点击事件内唤起文件选择器，兼容 Android WebView。
+      document.body.append(input);
+      input.click();
+      return;
+    }
+    const file = options.file;
     const appendTo = options.appendTo;
     openSheet(appendTo ? '导入章节到本书' : '导入 TXT', `<form id="txt-import-form">
-      <label class="form-field"><span>选择 TXT 文件</span><input id="txt-file" type="file" accept=".txt,text/plain" required></label>
-      <label class="form-field"><span>文本编码</span><select id="txt-encoding"><option value="auto">自动识别</option><option value="utf-8">UTF-8</option><option value="gb18030">GB18030 / GBK</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option><option value="big5">Big5</option></select></label>
-      <label class="form-field"><span>章节识别</span><select id="txt-mode"><option value="auto">自动识别章节</option><option value="single">整篇作为一章</option></select></label>
-      <p id="txt-summary" class="hint" role="status">选择文件后预览识别结果。</p>
+      <button id="txt-reselect" type="button">重新选择文件</button>
+      <p id="txt-summary" class="hint" role="status">正在读取并识别…</p>
       <p id="txt-warning" class="error"></p>
       <div id="txt-result" hidden>
-        ${appendTo ? '' : '<label class="form-field"><span>书名</span><input id="txt-title" maxlength="100" required></label><label class="form-field"><span>作者</span><input id="txt-author" maxlength="100" placeholder="未识别到可留空"></label>'}
-        <label class="form-field"><span>章节预览</span><select id="txt-chapter"></select></label>
-        <pre id="txt-preview" class="txt-preview"></pre>
-        ${appendTo ? '' : '<label id="txt-duplicate-row" class="row" hidden><span>已导入过此文件，仍作为另一本书导入</span><input id="txt-duplicate" type="checkbox"></label><label class="form-field"><span>导入后</span><select id="txt-destination"><option value="chapters">查看目录</option><option value="reader">开始阅读</option></select></label>'}
+        ${appendTo ? '' : '<label class="form-field"><span>书名</span><input id="txt-title" maxlength="100" required></label><label id="txt-duplicate-row" class="row" hidden><span>已导入过此文件，仍作为另一本书导入</span><input id="txt-duplicate" type="checkbox"></label>'}
       </div>
       <p id="txt-error" class="error" role="alert"></p>
-      <button class="primary" id="txt-confirm" disabled>${appendTo ? '追加到本书末尾' : '确认导入'}</button>
+      <button class="primary" id="txt-confirm" disabled>${appendTo ? '追加到本书末尾' : '导入'}</button>
     </form>`);
     const form = sheet.querySelector<HTMLFormElement>('#txt-import-form')!;
     const find = <T extends HTMLElement>(selector: string) => form.querySelector<T>(selector)!;
     const confirm = find<HTMLButtonElement>('#txt-confirm');
     const error = find('#txt-error');
     let parsed: ParsedText | undefined;
-    let file: File | undefined;
-    const preview = () => {
-      const chapter = parsed?.chapters[Number(find<HTMLSelectElement>('#txt-chapter').value)];
-      find('#txt-preview').textContent = chapter ? chapter.body.slice(0, 2000) + (chapter.body.length > 2000 ? '\n…（仅预览前 2000 字，导入保留全部正文）' : '') : '';
-    };
     const parse = async () => {
-      const selected = find<HTMLInputElement>('#txt-file').files?.[0];
-      if (!selected) return;
-      file = selected;
+      const selected = file;
       const current = ++revision;
       worker?.terminate();
       parsed = undefined;
@@ -75,7 +81,7 @@ export function createTxtFlows(context: Context) {
         const failure = (message: string) => {
           if (current !== revision) return;
           error.textContent = message;
-          find('#txt-summary').textContent = '识别未完成，请调整后重试。';
+          find('#txt-summary').textContent = '识别未完成，请重新选择文件。';
           worker?.terminate();
         };
         worker.onerror = event => failure(event.message || '识别程序无法启动，请重试。');
@@ -85,11 +91,7 @@ export function createTxtFlows(context: Context) {
           parsed = event.data.result as ParsedText;
           if (!appendTo) {
             find<HTMLInputElement>('#txt-title').value = parsed.name;
-            find<HTMLInputElement>('#txt-author').value = parsed.author;
           }
-          const select = find<HTMLSelectElement>('#txt-chapter');
-          select.replaceChildren();
-          parsed.chapters.forEach((chapter, index) => select.add(new Option(chapter.name, String(index))));
           if (!appendTo) {
             const duplicate = state.books.some(book => book.sourceHash === parsed!.hash);
             find('#txt-duplicate-row').hidden = !duplicate;
@@ -99,29 +101,20 @@ export function createTxtFlows(context: Context) {
           find('#txt-warning').textContent = parsed.warning ?? '';
           find('#txt-result').hidden = false;
           confirm.disabled = false;
-          preview();
           worker?.terminate();
         };
-        worker.postMessage({ bytes, filename: selected.name, encoding: find<HTMLSelectElement>('#txt-encoding').value, mode: find<HTMLSelectElement>('#txt-mode').value }, [bytes]);
+        worker.postMessage({ bytes, filename: selected.name, encoding: 'auto', mode: 'auto' }, [bytes]);
       } catch (failure) {
         if (current !== revision) return;
         error.textContent = String(failure instanceof Error ? failure.message : failure);
         find('#txt-summary').textContent = '文件读取失败。';
       }
     };
-    for (const selector of ['#txt-file', '#txt-encoding', '#txt-mode']) find(selector).addEventListener('change', parse);
-    find('#txt-chapter').addEventListener('change', preview);
-    if (options.file) {
-      const transfer = new DataTransfer();
-      transfer.items.add(options.file);
-      const input = find<HTMLInputElement>('#txt-file');
-      input.files = transfer.files;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    find('#txt-reselect').addEventListener('click', () => openImport({ appendTo }));
     form.addEventListener('submit', async event => {
       event.preventDefault();
       event.stopPropagation();
-      if (!parsed || !file || busy) return;
+      if (!parsed || busy) return;
       const chapters = parsed.chapters.map(chapter => ({ ...chapter, id: crypto.randomUUID() }));
       if (appendTo) {
         const previousChapters = appendTo.chapters;
@@ -160,20 +153,18 @@ export function createTxtFlows(context: Context) {
       let id = Date.now();
       while (state.books.some(book => book.id === id)) id++;
       const imported: Book = {
-        id, name, author: find<HTMLInputElement>('#txt-author').value.trim(), group: null,
+        id, name, author: parsed.author, group: null,
         libraryOrder: nextLibraryOrder(context.state, null), chapters, sourceHash: parsed.hash,
       };
       state.books.push(imported);
       try {
         await saveNow(state);
-        const destination = find<HTMLSelectElement>('#txt-destination').value;
         busy = false;
         closeSheet();
-        state.book = id;
+        state.book = null;
         state.chapter = 0;
         state.folder = null;
-        state.tab = destination === 'reader' ? 'read' : 'edit';
-        state.page = destination === 'reader' ? 'reader' : 'chapters';
+        state.page = 'home';
         state.readerControls = false;
         render();
         toast('已导入并保存');
@@ -185,6 +176,7 @@ export function createTxtFlows(context: Context) {
         confirm.textContent = '重新导入';
       }
     });
+    void parse();
   }
 
   function openExport(book: Book, chapter?: ChapterText) {

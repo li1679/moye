@@ -1,5 +1,8 @@
 import { expect, test } from './seed';
 import type { Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string };
 
 async function openEditor(page: Page) {
   await page.goto('/');
@@ -111,7 +114,7 @@ test.describe('墨页 UI refinement', () => {
     await page.goto('/');
     await page.locator('[data-action="tab:me"]').click();
     await page.locator('[data-action="about"]').click();
-    await expect(page.locator('.sheet-content')).toContainText('墨页 1.1.0');
+    await expect(page.locator('.sheet-content')).toContainText(`墨页 ${version}`);
     await expect(page.locator('.sheet-content')).toContainText('本地阅读，随心改文');
     await expect(page.locator('.sheet-content')).toContainText('所有数据只保存在本机，不联网。');
   });
@@ -136,7 +139,7 @@ test.describe('墨页 UI refinement', () => {
     await expect(page.locator('.bottom-nav span')).toHaveText(['写作', '阅读', '设置']);
     await page.locator('[data-action="tab:me"]').click();
     await expect(page.locator('.topbar h1')).toHaveText('设置');
-    await expect(page.locator('.profile-intro h2')).toHaveText('墨页 1.1.0');
+    await expect(page.locator('.profile-intro h2')).toHaveText(`墨页 ${version}`);
     await expect(page.locator('[data-action="import"]')).toHaveCount(0);
     for (const action of ['backup', 'cache', 'about']) {
       await expect(page.locator(`[data-action="${action}"]`)).toBeVisible();

@@ -2,6 +2,7 @@ import { test, expect } from './seed';
 import { toShelf } from './seed';
 import { readFile } from 'node:fs/promises';
 import { decodeText, parseText, exportText, txtFilename } from '../app/features/txt/text';
+import { selectTxt } from './txt-helper';
 
 const original = '《测试小说》\r\n作者：小林\r\n\r\n这段前文不能丢。\r\n\r\n第一章 归来\r\n　　第一段。\r\n\r\n  第二段 空格。\r\n第二章 空章\r\n第三章 尾声\r\n最后一句，没有换行';
 
@@ -41,12 +42,11 @@ test('warns when automatic recognition creates too many short chapters', () => {
   expect(parseText(source, '短章.txt', 'auto').warning).toContain('10 章不足 50 字');
 });
 
-test('import preview shows the short-chapter warning below the summary', async ({ page }) => {
+test('import summary shows the short-chapter warning without a chapter preview', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-action="home-menu"]').click();
-  await page.locator('[data-action="import"]').click();
   const source = Array.from({ length: 10 }, (_, index) => `第${index + 1}章\n短文${index + 1}\n`).join('');
-  await page.locator('#txt-file').setInputFiles({ name: '短章.txt', mimeType: 'text/plain', buffer: Buffer.from(source) });
+  await selectTxt(page, '短章.txt', source);
   await expect(page.locator('#txt-warning.error')).toContainText('10 章不足 50 字');
   await expect(page.locator('#txt-summary + #txt-warning')).toBeVisible();
 });
@@ -54,13 +54,11 @@ test('import preview shows the short-chapter warning below the summary', async (
 test('imported spaced headings appear only in chapter title, including after reload', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
-  await page.locator('#txt-file').setInputFiles({ name: '空格章节.txt', mimeType: 'text/plain', buffer: Buffer.from('第 1 章\n这是第一段正文。\n第 2 章\n这是第二段正文。') });
+  await selectTxt(page, '空格章节.txt', '第 1 章\n这是第一段正文。\n第 2 章\n这是第二段正文。');
   await expect(page.locator('#txt-confirm')).toBeEnabled();
-  await expect(page.locator('#txt-chapter option')).toHaveCount(2);
-  await expect(page.locator('#txt-preview')).toHaveText('这是第一段正文。');
+  await expect(page.locator('#txt-summary')).toContainText('2 章');
   await page.locator('#txt-confirm').click();
-  await expect(page.locator('.chapter-page')).toBeVisible();
+  await expect(page.locator('.books')).toBeVisible();
   await page.reload();
   await toShelf(page);
   await page.locator('.book').filter({ hasText: '空格章节' }).click();
@@ -73,10 +71,9 @@ test('importing chapters appends to the current book without creating another bo
   await page.goto('/');
   await page.locator('[data-action="book:1"]').click();
   await page.getByRole('button', { name: '书籍菜单', exact: true }).click();
-  await page.getByRole('button', { name: '导入章节', exact: true }).click();
+  await selectTxt(page, '追加章节.txt', '第4章\n新增正文四。\n第5章\n新增正文五。', 'import-chapters');
   await expect(page.locator('#sheet .sheet-head h2')).toHaveText('导入章节到本书');
   await expect(page.locator('#txt-title, #txt-author, #txt-duplicate, #txt-destination')).toHaveCount(0);
-  await page.locator('#txt-file').setInputFiles({ name: '追加章节.txt', mimeType: 'text/plain', buffer: Buffer.from('第4章\n新增正文四。\n第5章\n新增正文五。') });
   await expect(page.locator('#txt-confirm')).toBeEnabled();
   await expect(page.locator('#txt-confirm')).toHaveText('追加到本书末尾');
   await page.locator('#txt-confirm').click();
@@ -126,15 +123,13 @@ test('five MB text stays in a single chapter without truncation', () => {
 test('import confirms persisted book, reloads and exports unchanged bytes', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
-  await page.locator('#txt-file').setInputFiles({ name: '测试小说.txt', mimeType: 'text/plain', buffer: Buffer.from(original) });
+  await selectTxt(page, '测试小说.txt', original);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
   await expect(page.locator('#txt-title')).toHaveValue('测试小说');
-  await expect(page.locator('#txt-chapter option')).toHaveCount(4);
+  await expect(page.locator('#txt-summary')).toContainText('4 章');
   await page.screenshot({ path: 'test-results/txt-import.png' });
   await page.locator('#txt-confirm').click();
-  await expect(page.locator('.chapter-page')).toBeVisible();
-  await expect(page.locator('.save-status')).toHaveText('已保存');
+  await expect(page.locator('.books')).toBeVisible();
   await page.reload();
   await toShelf(page);
   await page.locator('.book').filter({ hasText: '测试小说' }).click();
@@ -151,8 +146,7 @@ test('import confirms persisted book, reloads and exports unchanged bytes', asyn
 test('import fails atomically and can retry without creating duplicates', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
-  await page.locator('#txt-file').setInputFiles({ name: '重试测试.txt', mimeType: 'text/plain', buffer: Buffer.from('待保存的完整正文') });
+  await selectTxt(page, '重试测试.txt', '待保存的完整正文');
   await expect(page.locator('#txt-confirm')).toBeEnabled();
   await page.evaluate(() => {
     const original = IDBDatabase.prototype.transaction;
@@ -167,7 +161,7 @@ test('import fails atomically and can retry without creating duplicates', async 
   await page.locator('#txt-confirm').click();
   await expect(page.locator('#txt-error')).toContainText('导入未保存');
   await page.locator('#txt-confirm').click();
-  await expect(page.locator('.chapter-page')).toBeVisible();
+  await expect(page.locator('.books')).toBeVisible();
   await page.reload();
   await toShelf(page);
   await expect(page.locator('.book').filter({ hasText: '重试测试' })).toHaveCount(1);
@@ -177,12 +171,11 @@ test('five MB import persists and exports complete text after reload', async ({ 
   const text = '中文正文\n'.repeat(403299);
   await page.goto('/');
   await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-  await page.locator('[data-action="import"]').click();
-  await page.locator('#txt-file').setInputFiles({ name: '五兆整章.txt', mimeType: 'text/plain', buffer: Buffer.from(text) });
+  await selectTxt(page, '五兆整章.txt', text);
   await expect(page.locator('#txt-confirm')).toBeEnabled();
-  await expect(page.locator('#txt-chapter option')).toHaveCount(1);
+  await expect(page.locator('#txt-summary')).toContainText('1 章');
   await page.locator('#txt-confirm').click();
-  await expect(page.locator('.chapter-page')).toBeVisible();
+  await expect(page.locator('.books')).toBeVisible();
   await page.reload();
   await toShelf(page);
   await page.locator('.book').filter({ hasText: '五兆整章' }).click();
@@ -193,19 +186,16 @@ test('five MB import persists and exports complete text after reload', async ({ 
   expect(await readFile((await (await pending).path())!, 'utf8')).toBe(text);
 });
 
-test('duplicate file requires explicit choice and import can open reading directly', async ({ page }) => {
+test('duplicate file requires explicit choice and both imports stay on the shelf', async ({ page }) => {
   await page.goto('/');
   const selectFile = async () => {
     await page.getByRole('button', { name: '书架菜单', exact: true }).click();
-    await page.locator('[data-action="import"]').click();
-    await page.locator('#txt-file').setInputFiles({ name: '重复检测.txt', mimeType: 'text/plain', buffer: Buffer.from('第一章 阅读\n独立正文') });
+    await selectTxt(page, '重复检测.txt', '第一章 阅读\n独立正文');
     await expect(page.locator('#txt-confirm')).toBeEnabled();
   };
   await selectFile();
-  await page.locator('#txt-destination').selectOption('reader');
   await page.locator('#txt-confirm').click();
-  await expect(page.locator('.reader')).toBeVisible();
-  await expect(page.locator('.manuscript')).not.toHaveAttribute('contenteditable');
+  await expect(page.locator('.books')).toBeVisible();
   await page.reload();
   await toShelf(page);
   await selectFile();
@@ -213,7 +203,7 @@ test('duplicate file requires explicit choice and import can open reading direct
   await expect(page.locator('#txt-error')).toContainText('此文件已经导入');
   await page.locator('#txt-duplicate').check();
   await page.locator('#txt-confirm').click();
-  await expect(page.locator('.chapter-page')).toBeVisible();
+  await expect(page.locator('.books')).toBeVisible();
   await page.reload();
   await toShelf(page);
   await expect(page.locator('.book').filter({ hasText: '重复检测' })).toHaveCount(2);
@@ -227,5 +217,6 @@ test('分享 TXT 会打开导入面板并识别章节', async ({ page }) => {
     await share.receiveShare({ name: '分享.txt', data: btoa(unescape(encodeURIComponent('第一章\n正文'))) });
   });
   await expect(page.locator('#txt-import-form')).toBeVisible();
-  await expect(page.locator('#txt-chapter option')).toHaveCount(1);
+  await expect(page.locator('#txt-summary')).toContainText('1 章');
+  await expect(page.locator('#txt-confirm')).toBeEnabled();
 });

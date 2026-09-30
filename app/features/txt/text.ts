@@ -19,7 +19,7 @@ export function decodeText(bytes: Uint8Array, requested: Encoding): { text: stri
   try {
     return { text: new TextDecoder(encoding, { fatal: true }).decode(bytes), encoding };
   } catch {
-    throw new Error('无法按 ' + encoding + ' 解码，请切换编码后重新预览。');
+    throw new Error('无法自动识别文本编码，请将文件转为 UTF-8 后重新导入。');
   }
 }
 
@@ -27,6 +27,7 @@ type Heading = { start: number; end: number; name: string; raw: string; kind: 'c
 const STOP_WORDS = new Set('回合 回来 回去 回到 回家 回头 回答 回复 回忆 回应 回事 节课 节目 节日 节奏 节约 节省 节点 章程 篇幅 篇章 卷子 卷入 卷起 部分 部门 部队 部长 部署 集合 集团 集体 集中 集市'.split(' '));
 const NUMBERED = /^(?:正文\s*)?[【\[〔(]?\s*第\s*([〇零一二三四五六七八九十百千万两\d]+)\s*([章回节篇卷部集])(.*)$/;
 const SPECIAL = /^(?:序章|序言|前言|楔子|尾声|后记|终章|番外)(?:\s.*|[：:、.．·—-].*|[一二三四五六七八九十\d]+.*)?$|^chapter\s+\d+(?:\s.*|[.:：-].*)?$/i;
+const NUMERIC = /^(\d{1,4})(?:[.、．]\s*|\s+)?(\S.{0,24})?$/;
 
 function structuralHeading(line: string): { kind: Heading['kind']; numbered: boolean } | null {
   const title = line.trim().normalize('NFKC');
@@ -63,7 +64,7 @@ function headingsOf(text: string): Heading[] {
   const numeric = lines.flatMap(line => {
     const title = line.line.trim().normalize('NFKC');
     if (!title || title.length > 50 || /[。！？!?]$/.test(title)) return [];
-    const match = title.match(/^(\d{1,4})(?:[.、．]\s*|\s+)?(\S.{0,24})?$/);
+    const match = title.match(NUMERIC);
     return match ? [{ ...line, name: line.line.trim(), kind: 'chapter' as const, numbered: false, number: Number(match[1]) }] : [];
   });
   const sequential = numeric.slice(1).filter((heading, index) => heading.number === numeric[index].number + 1).length;
@@ -71,15 +72,36 @@ function headingsOf(text: string): Heading[] {
   return [...structural, ...accepted].sort((a, b) => a.start - b.start);
 }
 
+/** 只读连续的文件头，逐行匹配，空作者绝不跨行读取章节或正文。 */
+function openingMetadata(text: string, filename: string) {
+  const fallback = filename.replace(/\.txt$/i, '').trim();
+  let name = fallback, author = '', bodyStart = 0;
+  let hasTitle = false;
+  for (const match of text.matchAll(/([^\r\n]*)(\r\n|\n|\r|$)/g)) {
+    if (!match[0]) break;
+    const line = match[1].trim();
+    if (line) {
+      const title = line.match(/^(?:书名[^\S\r\n]*[：:][^\S\r\n]*(.{1,100})|《([^》]{1,100})》(?:[^\S\r\n]*作者[^\S\r\n]*[：:][^\S\r\n]*(.{0,100}))?)$/);
+      const writer = line.match(/^作者[^\S\r\n]*[：:][^\S\r\n]*(.{0,100})$/);
+      if (title && !hasTitle) {
+        name = (title[1] || title[2]).trim() || fallback;
+        author = title[3]?.trim() || author;
+        hasTitle = true;
+      } else if (writer) author = writer[1].trim();
+      else if (!hasTitle && line === fallback && !structuralHeading(line) && !NUMERIC.test(line.normalize('NFKC'))) hasTitle = true;
+      else break;
+    }
+    bodyStart = match.index! + match[0].length;
+  }
+  return { name, author, bodyStart };
+}
+
 export function parseText(text: string, filename: string, mode: 'auto' | 'single'): Omit<ParsedText, 'encoding' | 'hash'> {
   if (!text.length) throw new Error('这个 TXT 是空文件，请选择有正文的文件。');
-  const beginning = text.slice(0, 4096);
-  const title = beginning.match(/^(?:书名\s*[：:]\s*(.+)|《([^\r\n]{1,100})》(?:\s*作者.*)?)\s*$/m);
-  const author = beginning.match(/(?:^|\s)作者\s*[：:]\s*([^\r\n]+)/m);
-  const name = (title?.[1] || title?.[2] || filename.replace(/\.txt$/i, '')).trim();
+  const { name, author, bodyStart: contentStart } = openingMetadata(text, filename);
   const chapters: ChapterText[] = [];
-  if (mode === 'single') return { name, author: author?.[1]?.trim() || '', chapters: [{ name: '正文', body: text, sourceHeading: null }], characters: text.length };
-  const found = headingsOf(text);
+  if (mode === 'single') return { name, author, chapters: [{ name: '正文', body: text, sourceHeading: null }], characters: text.length };
+  const found = headingsOf(text.slice(contentStart)).map(heading => ({ ...heading, start: heading.start + contentStart, end: heading.end + contentStart }));
   const headings: Heading[] = [];
   for (let index = 0; index < found.length; index++) {
     const heading = found[index], next = found[index + 1];
@@ -88,29 +110,43 @@ export function parseText(text: string, filename: string, mode: 'auto' | 'single
       index++;
     } else headings.push(heading);
   }
-  let bodyStart = 0;
+  const firstStart = headings[0]?.start ?? text.length;
+  const preface = text.slice(contentStart, firstStart);
+  const prefix = text.slice(0, contentStart);
+  if (headings.length && preface.trim()) {
+    chapters.push({ name: '前文', body: preface, sourceHeading: prefix ? { name: '前文', raw: prefix } : null });
+  }
+  let bodyStart = contentStart;
   let current: Heading | null = null;
   for (const heading of headings) {
     if (current) chapters.push({ name: current.name, body: text.slice(bodyStart, heading.start), sourceHeading: { name: current.name, raw: current.raw } });
-    else if (heading.start > 0) chapters.push({ name: '前文', body: text.slice(0, heading.start), sourceHeading: null });
-    current = heading;
+    // 元数据和空白只保留为原始来源，不放进阅读正文，也不创建空“前文”。
+    current = !current && !chapters.length ? { ...heading, raw: text.slice(0, heading.end) } : heading;
     bodyStart = heading.end;
   }
   if (current) chapters.push({ name: current.name, body: text.slice(bodyStart), sourceHeading: { name: current.name, raw: current.raw } });
-  else chapters.push({ name: '正文', body: text, sourceHeading: null });
+  else chapters.push({ name: '正文', body: preface, sourceHeading: prefix ? { name: '正文', raw: prefix } : null });
   if (chapters.map(chapter => (chapter.sourceHeading?.raw || '') + chapter.body).join('') !== text) throw new Error('章节解析完整性检查失败，未导入。');
   const short = chapters.filter(chapter => chapter.body.trim().length < 50).length;
   const warning = chapters.length >= 10 && short / chapters.length > .3
-    ? `识别出较多很短的章节（${short} 章不足 50 字），可能把正文当成了标题。可以改选“整篇作为一章”。`
+    ? `识别出较多很短的章节（${short} 章不足 50 字），可能把正文当成了标题。导入后可在目录中检查并整理。`
     : undefined;
-  return { name, author: author?.[1]?.trim() || '', chapters, characters: text.length, ...(warning ? { warning } : {}) };
+  return { name, author, chapters, characters: text.length, ...(warning ? { warning } : {}) };
 }
 
 export function exportText(book: { name: string; author?: string; chapters: ChapterText[] }, options: { titles: boolean; metadata: boolean; spacing: 'original' | '0' | '1' | '2' }): string {
   const sections = book.chapters.map(chapter => {
     let heading = '';
     if (options.titles && (chapter.sourceHeading !== null || !['前文', '正文'].includes(chapter.name))) {
-      heading = chapter.sourceHeading?.name === chapter.name ? chapter.sourceHeading.raw : chapter.name + '\n';
+      const source = chapter.sourceHeading;
+      if (source?.name === chapter.name) heading = source.raw;
+      else {
+        const raw = source?.raw ?? '';
+        const firstHeading = scanLines(raw).find(line => line.line.trim() === source?.name
+          || structuralHeading(line.line) || NUMERIC.test(line.line.trim().normalize('NFKC')));
+        // 重命名只替换章标题，原始文件头和前置空白仍随来源保留。
+        heading = raw.slice(0, firstHeading?.start ?? raw.length) + chapter.name + '\n';
+      }
       if (chapter.body && !/[\r\n]$/.test(heading)) heading += '\n';
     }
     return heading + chapter.body;
